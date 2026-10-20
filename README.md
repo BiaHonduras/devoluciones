@@ -16,3 +16,11 @@ Las tablas y funciones están instaladas en la base activa.
 - Favicon: se referencia `favicon.png`. `index.htm` redirige a `index.html`, conservando parámetros y sección.
 
 Verificación: `node --check app.js`, `node --test tests/transfer.test.mjs`, migración aplicada y consulta SQL de validadores/permisos/consecutivos. No se enviaron invitaciones ni se importaron registros de producción durante estas comprobaciones. La creación real y la importación desde una sesión administrativa quedan pendientes de prueba operativa.
+
+## Clientes, comentarios y logo
+
+En Ingresar devolución, Agregar Cliente guarda en `negocio`; Agregar Comentario guarda una opción en `observaciones`. El formulario permite hasta 200 caracteres y selecciona el valor guardado sin limpiar la devolución. Los usuarios activos con contraseña actualizada y acceso a alguna sede pueden agregar opciones. La función valida estos permisos en la base, normaliza espacios y reutiliza coincidencias sin distinguir mayúsculas. No concede escritura directa sobre las tablas.
+
+Se utiliza el logo corporativo de `https://biahonduras.github.io/contenedores/brand/bia-honduras-logo.png` en el acceso y menú lateral. La disponibilidad de esta imagen depende del sitio de Contenedores.
+
+Migración `database/agregar_catalogos.sql` aplicada. Prueba transaccional con rollback: guardado en ambas tablas, reutilización de duplicados y rechazo sin sesión correctos. Sintaxis JavaScript, referencias HTML y pruebas CSV correctas.
