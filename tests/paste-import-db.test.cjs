@@ -28,4 +28,15 @@ await assert.rejects(()=>run([r]),/GESTION_YA_EXISTE/);
 await db.exec("select set_config('test.allowed','no',false)");await assert.rejects(()=>run([{...r,gestion:'DEV-21102026-02'}]),/SOLO_ADMINISTRADOR/);await db.exec("select set_config('test.allowed','yes',false)");
 await assert.rejects(()=>run([{...r,gestion:'DEV-21102026-02'},{...r,gestion:'DEV-21102026-03',codigo:'missing'}]),/CODIGO_NO_EXISTE/);assert.equal((await db.query('select count(*)::int n from devoluciones')).rows[0].n,1);
 const legacy={...r,gestion:'DEV-21102026-04'};delete legacy.datos_originales;await run([legacy]);assert.equal((await db.query("select datos_originales from devoluciones_detalle join devoluciones on devolucion_id=id where gestion='DEV-21102026-04'")).rows[0].datos_originales,null);
-console.log('PASS original metadata, identifiers, numeric fields, idempotent patch, duplicate rejection, admin checks, atomic rollback and legacy CSV compatibility');await db.close();})().catch(e=>{console.error(e);process.exitCode=1});
+// Exercise the real pasted grouped row through the unchanged SQL import RPC.
+await db.exec("insert into codigos values('0002','Galleta')");
+const {ORIGINAL_HEADERS,parseExcelPaste}=await import('../paste-import.mjs');
+const original={'ID Gestion':'DEV-21102026-05',FechaRegistro:'21/10/2026 08:30',Sede:'SPS',GestorN1:'Gestor',NumeroFactura:'00005',NombreCliente:'Cliente',Codigo:'0001,0002',Descripcion:'Café,Galleta',Cantidad:'2,3',CostoSKU:'100,20',CostoTotal:'260',Observacion:'Producto dañado',BodegaOrigen:'030',BodegaDestino:'513',Estado:'Finalizada','Cajas/Fardos':'Caja,Fardo'};
+const text=[ORIGINAL_HEADERS,ORIGINAL_HEADERS.map(h=>original[h]||'')].map(row=>row.join('\t')).join('\n');
+const payload=parseExcelPaste(text,{sedes:[{codigo:'SPS'}],usuarios:[{id:1,correo:'gestor@example.com',nombre_corto:'Gestor'}],estados:['Finalizada'],negocio:['Cliente'],observaciones:['Producto dañado'],liquidadoras:[]}).rows;
+assert.deepEqual((await run(payload)).rows[0].result,{gestiones:1,lineas:2});
+const saved=(await db.query("select codigo,cantidad,costo_unitario,datos_originales from devoluciones_detalle join devoluciones on devolucion_id=id where gestion='DEV-21102026-05' order by codigo")).rows;
+assert.deepEqual(saved.map(i=>[i.codigo,i.cantidad,i.costo_unitario,i.datos_originales.producto.cajas_fardos]),[['0001','2','100','Caja'],['0002','3','20','Fardo']]);
+assert(saved.every(i=>i.datos_originales.Codigo==='0001,0002'));
+assert.equal((await db.query("select sum(cantidad*costo_unitario)::text total from devoluciones_detalle join devoluciones on devolucion_id=id where gestion='DEV-21102026-05'")).rows[0].total,'260');
+console.log('PASS original metadata, identifiers, numeric fields, idempotent patch, duplicate rejection, admin checks, atomic rollback legacy CSV compatibility and grouped multi-SKU persistence');await db.close();})().catch(e=>{console.error(e);process.exitCode=1});
