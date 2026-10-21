@@ -34,3 +34,13 @@ Migración `database/agregar_catalogos.sql` aplicada. Prueba transaccional con r
 - `public.liquidadoras.celular` guarda el teléfono de contacto. Completar manualmente en Supabase → Table Editor → liquidadoras → celular. El documento consulta ese valor y permite una corrección particular para la entrega.
 - Migración: `database/control_entrega.sql`. Tablas `devoluciones_entregas` y `devoluciones_entrega_items`, lectura con RLS por sede y escritura mediante RPC con validación de rol admin/operador o maestro y versión. No hay escritura anónima ni acceso entre sedes no autorizadas.
 - Verificado con pruebas SQL aisladas, 32 pruebas automatizadas y navegador con datos sintéticos: N2, edición/impresión, confirmaciones N3, finalización y cierre tras imprimir. PDF de prueba carta horizontal; 100 SKU completos repartidos en cuatro páginas.
+
+## Rótulos, sedes y consolidado
+
+Los formularios utilizan los nombres acordados para ingreso, seguimiento, usuarios e importación/exportación. Los botones Todas/SPS/CBA/SRC/TGU/AMT filtran Dashboard y Consolidado; las sedes no autorizadas se muestran deshabilitadas. La sede seleccionada también se propone en el formulario de ingreso.
+
+Consolidado y la hoja Detalle del dashboard exportado comparten `consolidated.mjs`: 31 columnas desde IDGestion hasta Mes, una fila por gestión, listas de SKU alineadas, costo total por devolución y conservación de metadatos DIA/Mes/Cajas por SKU cuando fueron importados. Las hojas de cálculo internas del dashboard mantienen sus fórmulas e indicadores.
+
+Se restauró el controlador de clics de Editar/Eliminar/abrir seguimiento y la paginación. El listado de usuarios y el menú muestran `usuarios.nombre_corto`; `database/usuarios_nombre_corto.sql` agrega esa propiedad a `bia_list_users` sin cambiar su acceso por sede.
+
+Verificado: 34 pruebas automatizadas, apertura del Excel con openpyxl y navegador con datos sintéticos para edición/guardado, eliminación cancelada/confirmada, paginación, sedes, rótulos y nombres cortos.

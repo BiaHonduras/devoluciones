@@ -31,3 +31,4 @@
  body.printing-delivery .delivery-page footer{display:flex;margin-top:2mm;padding:0;border:0;background:#fff;color:#333}
 }
 .delivery-page table tbody tr:last-child td{border-bottom:1px solid #111}
+.site-buttons{display:flex;flex-wrap:wrap;gap:8px;margin:-10px 0 22px}.site-buttons button{border:1px solid #dce4ee;border-radius:7px;background:white;color:#425775;padding:8px 17px;font-size:12px;font-weight:700}.site-buttons button[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:white}.site-buttons button:disabled{opacity:.4;cursor:not-allowed}nav button span{white-space:normal}nav button{gap:8px}
