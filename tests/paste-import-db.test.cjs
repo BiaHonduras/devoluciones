@@ -8,7 +8,7 @@ create function public.obtener_sedes_usuario() returns text[] language sql as $$
 create table usuarios(id integer,correo text,activo boolean,auth_user_id uuid,nombre_corto text,usuario text);
 insert into usuarios values(1,'gestor@example.com',true,auth.uid(),'Gestor','gestor');
 create table sedes(codigo text);insert into sedes values('SPS');
-create table estados(nombre text);insert into estados values('Finalizado');
+create table estados(nombre text);insert into estados values('Finalizada');
 create table negocio(nombre text);insert into negocio values('Cliente');
 create table observaciones(nombre text);insert into observaciones values('Producto dañado');
 create table codigos(codigo text,descripcion text);insert into codigos values('0001','Café');
@@ -20,7 +20,7 @@ create table devoluciones_privado.consecutivos(fecha date primary key,numero int
 `);
 const root=path.join(__dirname,'..'),old=fs.readFileSync(path.join(root,'database/actualizar_modulos.sql'),'utf8');await db.exec(old.slice(old.indexOf('CREATE OR REPLACE FUNCTION devoluciones_privado.importar_historico')));
 const patch=fs.readFileSync(path.join(root,'database/importar_excel_pegado.sql'),'utf8');await db.exec(patch);await db.exec(patch);
-const r={gestion:'DEV-21102026-01',fecha_registro:'2026-10-21T14:30:00Z',sede:'SPS',gestor_n1:'gestor@example.com',gestor_n2:'',gestor_n4:'',liquidadora:'',factura:'0000123',cliente:'Cliente',codigo:'0001',descripcion:'Café',cantidad:'2.5',costo_unitario:'100',observacion:'Producto dañado',bodega_origen:'030',bodega_destino:'513',comentario:'',estado:'Finalizado',fecha_entrega_liquidadora:'',fecha_nota_debito:'',fecha_ingreso_gp:'',fecha_finalizado:'',datos_originales:{'ID Gestion':'DEV-21102026-01','Cajas/Fardos':'2',Mes:'octubre',TiempoTotal:'3:00'}};
+const r={gestion:'DEV-21102026-01',fecha_registro:'2026-10-21T14:30:00Z',sede:'SPS',gestor_n1:'gestor@example.com',gestor_n2:'',gestor_n4:'',liquidadora:'',factura:'0000123',cliente:'Cliente',codigo:'0001',descripcion:'Café',cantidad:'2.5',costo_unitario:'100',observacion:'Producto dañado',bodega_origen:'030',bodega_destino:'513',comentario:'',estado:'Finalizada',fecha_entrega_liquidadora:'',fecha_nota_debito:'',fecha_ingreso_gp:'',fecha_finalizado:'',datos_originales:{'ID Gestion':'DEV-21102026-01','Cajas/Fardos':'2',Mes:'octubre',TiempoTotal:'3:00'}};
 const run=rows=>db.query('select devoluciones_privado.importar_historico($1) result',[JSON.stringify(rows)]);
 assert.deepEqual((await run([r])).rows[0].result,{gestiones:1,lineas:1});
 const line=(await db.query('select * from devoluciones_detalle')).rows[0];assert.deepEqual(line.datos_originales,r.datos_originales);assert.equal(line.codigo,'0001');assert.equal(line.cantidad,'2.5');assert.equal((await db.query('select factura from devoluciones')).rows[0].factura,'0000123');
