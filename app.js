@@ -1,4 +1,4 @@
-import {groupedProducts} from './product-lists.mjs?v=20261021-multisku';
+import {groupedProducts} from './product-lists.mjs?v=20261021-multisku-orden';
 import { managementActions } from './row-actions.mjs?v=20261021-acciones';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
 import { NEXT,money,number,localDay,hours,summarize,csvCell,filterRows } from './logic.mjs?v=20261021-estados';
