@@ -1,4 +1,4 @@
-import {parseExcelRows} from './paste-import.mjs?v=20261021-multisku';
+import {parseExcelRows} from './paste-import.mjs?v=20261021-precision';
 export function cellText(cell,row,column){let value=cell.value;if(value===null||value===undefined)return '';
  if(value&&typeof value==='object'&&('formula'in value||'sharedFormula'in value)){if(value.result===undefined||value.result===null)throw Error(`Fila ${row}, columna ${column}: la fórmula no tiene un resultado guardado. Abre el archivo en Excel, recalcula y guarda antes de importarlo.`);value=value.result;}
  if(value instanceof Date){if(!Number.isFinite(+value))throw Error(`Fila ${row}: fecha inválida.`);const p=n=>String(n).padStart(2,'0');return `${p(value.getUTCDate())}/${p(value.getUTCMonth()+1)}/${value.getUTCFullYear()} ${p(value.getUTCHours())}:${p(value.getUTCMinutes())}:${p(value.getUTCSeconds())}`;}

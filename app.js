@@ -5,8 +5,8 @@ import {groupedProducts} from './product-lists.mjs?v=20261021-multisku-orden';
 import { managementActions } from './row-actions.mjs?v=20261021-acciones';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
 import { money,number,localDay,hours,summarize,csvCell,filterRows } from './logic.mjs?v=20261021-estados';
-import { FIELDS, parseCSV, validateRows } from './transfer.mjs?v=20261021-estados';
-import { ORIGINAL_HEADERS, parseExcelPaste } from './paste-import.mjs?v=20261021-multisku';
+import { FIELDS, parseCSV, validateRows } from './transfer.mjs?v=20261021-precision';
+import { ORIGINAL_HEADERS, parseExcelPaste } from './paste-import.mjs?v=20261021-precision';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=v=>v?new Intl.DateTimeFormat('es-HN',{dateStyle:'short',timeStyle:'short',timeZone:'America/Tegucigalpa'}).format(new Date(v)):'—';
@@ -139,7 +139,7 @@ $('#validate-import').onclick=()=>act($('#validate-import'),async()=>{
  invalidateImport();const revision=importRevision,text=$('#import-paste').value;
  let rows,originals;
  if(text.trim()){({rows,originals}=parseExcelPaste(text,state.catalogs));}
- else{const file=$('#import-file').files[0];if(!file)throw new Error('Pega las filas de Excel o selecciona un archivo XLSX.');if(file.size>15*1024*1024)throw new Error('El archivo supera 15 MB.');if(/\.xlsx$/i.test(file.name)){const {readExcelImport}=await import('./excel-import.mjs?v=20261021-multisku');({rows,originals}=await readExcelImport(await file.arrayBuffer(),state.catalogs));}else if(/\.csv$/i.test(file.name)){rows=parseCSV(await file.text());validateRows(rows,state.catalogs);}else throw new Error('Selecciona un archivo .xlsx o el CSV estándar anterior.');}
+ else{const file=$('#import-file').files[0];if(!file)throw new Error('Pega las filas de Excel o selecciona un archivo XLSX.');if(file.size>15*1024*1024)throw new Error('El archivo supera 15 MB.');if(/\.xlsx$/i.test(file.name)){const {readExcelImport}=await import('./excel-import.mjs?v=20261021-precision');({rows,originals}=await readExcelImport(await file.arrayBuffer(),state.catalogs));}else if(/\.csv$/i.test(file.name)){rows=parseCSV(await file.text());validateRows(rows,state.catalogs);}else throw new Error('Selecciona un archivo .xlsx o el CSV estándar anterior.');}
  if(revision!==importRevision)throw new Error('El contenido cambió durante la validación. Valídalo nuevamente.');
  const existing=new Set(state.rows.map(r=>r.gestion)),duplicate=rows.find(r=>existing.has(r.gestion));if(duplicate)throw new Error(`La gestión ${duplicate.gestion} ya está registrada. Retírala del bloque antes de importar.`);
  pendingImport=rows;const headers=originals?ORIGINAL_HEADERS:FIELDS,preview=originals||rows;

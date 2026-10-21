@@ -1,10 +1,11 @@
+import {importNumber} from './import-number.mjs';
 import {canonicalState} from './statuses.mjs';
-import {FIELDS,validateRows} from './transfer.mjs?v=20261021-estados';
+import {FIELDS,validateRows} from './transfer.mjs?v=20261021-precision';
 export const ORIGINAL_HEADERS=['ID Gestion','FechaRegistro','Sede','GestorN1','GestorN2','GestorN4','Liquidadora','NumeroFactura','NombreCliente','Codigo','Descripcion','Cantidad','Observacion','BodegaOrigen','BodegaDestino','Estado','FechaEntregaLiquidadora','FechaNotaDebido','FechaIngresoGP','TiempoN1N2','TiempoN2N3','TiempoN3N4','TiempoTotal','ResponsableActual','Comentarios','ConteoSKUs','CostoSKU','CostoTotal','DIA','Cajas/Fardos','Mes'];
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const header=v=>norm(v)==='fechanotadebito'?'fechanotadebido':norm(v);
 function tsv(text){const rows=[];let row=[],cell='',quoted=false,closed=false;text=text.replace(/^\uFEFF/,'');for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++}else{quoted=false;closed=true}}else cell+=c;}else if(c==='"'&&!cell&&!closed)quoted=true;else if(c==='\t'||c==='\n'||c==='\r'){row.push(cell);cell='';closed=false;if(c!=='\t'){if(c==='\r'&&text[i+1]==='\n')i++;if(row.some(v=>v.trim()))rows.push(row);row=[]}}else{if(closed&&c.trim())throw Error('Revisa las comillas del contenido pegado.');if(!closed)cell+=c;}}if(quoted)throw Error('Hay una celda con comillas sin cerrar. Copia nuevamente el rango desde Excel.');if(cell||row.length){row.push(cell);if(row.some(v=>v.trim()))rows.push(row)}return rows;}
-export function originalNumber(value){let s=String(value).trim().replace(/^(?:HNL|L\.?)\s*/i,'').replace(/[\s\u00a0]/g,'');if(!s)return '';if(s.includes(',')&&s.includes('.')){if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,/g,'');}else if(s.includes(',')){s=/^\d{1,3}(,\d{3})+$/.test(s)?s.replace(/,/g,''):s.replace(',','.');}if(!/^\d+(\.\d{1,4})?$/.test(s)||!Number.isFinite(Number(s)))throw Error('usa un número positivo con un máximo de cuatro decimales.');return String(Number(s));}
+export function originalNumber(value){let s=String(value).trim().replace(/^(?:HNL|L\.?)\s*/i,'').replace(/[\s\u00a0]/g,'');if(!s)return '';if(s.includes(',')&&s.includes('.')){if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,/g,'');}else if(s.includes(',')){s=/^\d{1,3}(,\d{3})+$/.test(s)?s.replace(/,/g,''):s.replace(',','.');}return importNumber(s);}
 export function originalDate(value){const s=String(value??'').trim();if(!s||['-','—'].includes(s))return '';if(/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(s)){if(!Number.isFinite(Date.parse(s)))throw Error('fecha inválida.');return new Date(s).toISOString();}
  let year,month,day,h=0,m=0,sec=0;
  if(/^\d{5}(?:\.\d+)?$/.test(s)){const ms=(Number(s)-25569)*86400000;const dt=new Date(Math.round(ms/1000)*1000);year=dt.getUTCFullYear();month=dt.getUTCMonth()+1;day=dt.getUTCDate();h=dt.getUTCHours();m=dt.getUTCMinutes();sec=dt.getUTCSeconds();}
@@ -33,7 +34,7 @@ export function parseExcelRows(input,catalog){let matrix=input.map(row=>row.map(
  let rowCost=0;
  for(let j=0;j<count;j++){
   const r={...base,codigo:codes[j],descripcion:lists.Descripcion[j]};
-  for(const [k,h] of [['cantidad','Cantidad'],['costo_unitario','CostoSKU']])try{const raw=lists[h][j];if(count>1&&!/^(?:HNL|L\.?)?\s*\d+(?:\.\d{1,4})?$/i.test(raw))throw Error('usa punto decimal y no uses separador de miles en las listas.');r[k]=originalNumber(raw);}catch(e){fail(`${h}, SKU ${j+1}`,e)}
+  for(const [k,h] of [['cantidad','Cantidad'],['costo_unitario','CostoSKU']])try{const raw=lists[h][j];if(count>1&&!/^(?:HNL|L\.?)?\s*\d+(?:\.\d+)?$/i.test(raw))throw Error('usa punto decimal y no uses separador de miles en las listas.');r[k]=originalNumber(raw);}catch(e){fail(`${h}, SKU ${j+1}`,e)}
   rowCost+=Math.round(Number(r.cantidad)*Number(r.costo_unitario)*100)/100;
   r.datos_originales={...original,producto:{indice:j+1,codigo:r.codigo,descripcion:r.descripcion,cantidad:r.cantidad,costo_sku:r.costo_unitario,cajas_fardos:lists['Cajas/Fardos'][j]},fila_origen:i+first};
   rows.push(r);origins.push({row:i+first,sku:j+1});if(rows.length>10000)fail('productos','Máximo 10,000 productos en una importación.');
