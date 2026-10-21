@@ -1,0 +1,33 @@
+const {PGlite}=require(process.env.BIA_PGLITE_MODULE||'@electric-sql/pglite');const fs=require('fs'),path=require('path'),assert=require('node:assert/strict');
+(async()=>{const db=new PGlite();await db.exec(`
+create role anon;create role authenticated;create schema auth;create schema devoluciones_privado;
+create table auth.users(id uuid primary key);insert into auth.users values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002'),('00000000-0000-0000-0000-000000000003');
+create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+create table usuarios(id integer,auth_user_id uuid,nombre_corto text,usuario text,activo boolean);
+insert into usuarios values(1,'00000000-0000-0000-0000-000000000001','Admin SPS','admin',true),(2,'00000000-0000-0000-0000-000000000002','Admin TGU','admin2',true),(3,'00000000-0000-0000-0000-000000000003','Consulta','viewer',true);
+create table usuarios_sedes(user_id uuid,sede text,rol text,activo boolean);
+insert into usuarios_sedes values('00000000-0000-0000-0000-000000000001','SPS','operador',true),('00000000-0000-0000-0000-000000000002','TGU','admin',true),('00000000-0000-0000-0000-000000000003','SPS','consulta',true);
+create function devoluciones_privado.autorizado() returns boolean language sql stable security definer as $$select exists(select 1 from public.usuarios where auth_user_id=auth.uid() and activo)$$;
+create function usuario_puede_sede(s text) returns boolean language sql stable security definer as $$select exists(select 1 from public.usuarios_sedes where user_id=auth.uid() and sede=s and activo)$$;
+create function usuario_es_maestro() returns boolean language sql stable as $$select false$$;
+create table negocio(nombre text);insert into negocio values('Cliente');create table observaciones(nombre text);insert into observaciones values('Dañado');
+create table devoluciones(id uuid primary key,gestion text,sede text,estado text,version integer,factura text,cliente text,observacion text,bodega_origen text,bodega_destino text,comentario text,fecha_registro timestamptz);
+alter table devoluciones enable row level security;
+create table devoluciones_detalle(id bigint primary key,devolucion_id uuid references devoluciones,codigo text,descripcion text,cantidad numeric(16,4),costo_unitario numeric(16,4),costo_total numeric(20,2) generated always as(round(cantidad*costo_unitario,2)) stored);
+create table devoluciones_historial(id bigint generated always as identity,devolucion_id uuid,actor uuid,actor_nombre text,estado_anterior text,estado_nuevo text,comentario text);
+insert into devoluciones values('10000000-0000-0000-0000-000000000001','DEV-TEST','SPS','Pendiente GP',1,'F1','Cliente','Dañado','B1','B2','','2026-10-21T12:00:00Z');
+insert into devoluciones_detalle(id,devolucion_id,codigo,descripcion,cantidad,costo_unitario) values(11,'10000000-0000-0000-0000-000000000001','A','Producto A',1,2.50),(12,'10000000-0000-0000-0000-000000000001','B','Producto B',2,3);
+grant usage on schema public,auth,devoluciones_privado to authenticated;grant select on devoluciones to authenticated;
+`);await db.exec(fs.readFileSync(path.join(__dirname,'../database/editar_eliminar.sql'),'utf8'));await db.exec(fs.readFileSync(path.join(__dirname,'../database/editar_eliminar.sql'),'utf8'));
+const id='10000000-0000-0000-0000-000000000001',data={factura:'F2',cliente:'Cliente',observacion:'Dañado',bodega_origen:'B1',bodega_destino:'B3',comentario:'Corregido'},items=[{id:'11',cantidad:'3'},{id:'12',cantidad:'4'}];
+async function as(uid,role='authenticated'){await db.exec(`reset role;set role ${role};select set_config('request.jwt.claim.sub','${uid}',false)`)}
+const edit=(version,entries=items)=>db.query('select dev_editar($1,$2,$3,$4)',[id,version,JSON.stringify(data),JSON.stringify(entries)]);
+await as('00000000-0000-0000-0000-000000000001');await edit(1);
+let row=(await db.query('select * from devoluciones')).rows[0];assert.equal(row.factura,'F2');assert.equal(row.estado,'Pendiente GP');assert.equal(row.version,2);assert.equal(new Date(row.fecha_registro).toISOString(),'2026-10-21T12:00:00.000Z');
+await assert.rejects(()=>edit(1),/gestión cambió/);await assert.rejects(()=>edit(2,[{id:'11',cantidad:'1'},{id:'99',cantidad:'1'}]),/fuera de esta gestión/);await assert.rejects(()=>edit(2,[{id:'11',cantidad:'-2'},{id:'12',cantidad:'1'}]),/Cantidad no válida/);
+await as('00000000-0000-0000-0000-000000000002');await assert.rejects(()=>edit(2),/Sin permiso/);
+await as('00000000-0000-0000-0000-000000000003');await assert.rejects(()=>edit(2),/Sin permiso/);
+await as('','anon');await assert.rejects(()=>edit(2),/permission denied/);
+await as('00000000-0000-0000-0000-000000000001');await db.query('select dev_eliminar($1,$2)',[id,2]);assert.equal((await db.query('select * from devoluciones')).rows.length,0);await assert.rejects(()=>db.query('select dev_eliminar($1,$2)',[id,3]),/eliminada/);
+await db.exec('reset role');const totals=(await db.query('select sum(costo_total)::text total from devoluciones_detalle')).rows[0];assert.equal(totals.total,'19.50');assert.equal((await db.query('select count(*)::int n from devoluciones_historial')).rows[0].n,2);assert.equal((await db.query('select count(*)::int n from devoluciones')).rows[0].n,1);assert((await db.query('select comentario from devoluciones_historial order by id limit 1')).rows[0].comentario.includes('cantidad 1.0000 → 3'));await assert.rejects(()=>db.query("update devoluciones set estado='Finalizado'"),/gestión fue eliminada/);
+console.log('PASS: edit updates fields/quantities/totals with audit; preserves state/date; stale versions, wrong-site, viewers and anon denied; deletion hides whole management but retains records/history; deleted management cannot advance');await db.close()})().catch(e=>{console.error(e);process.exitCode=1});
