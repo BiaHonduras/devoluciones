@@ -2,6 +2,7 @@ import { managementActions } from './row-actions.mjs?v=20261021-acciones';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
 import { NEXT,money,number,localDay,hours,summarize,csvCell,filterRows } from './logic.mjs';
 import { FIELDS, parseCSV, validateRows } from './transfer.mjs';
+import { ORIGINAL_HEADERS, parseExcelPaste } from './paste-import.mjs?v=20261021-pegar';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=v=>v?new Intl.DateTimeFormat('es-HN',{dateStyle:'short',timeStyle:'short',timeZone:'America/Tegucigalpa'}).format(new Date(v)):'—';
@@ -87,10 +88,25 @@ $('#export').onclick=()=>exportDashboard($('#export'));
 function downloadCSV(rows,name){const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 $('#template').onclick=()=>downloadCSV([FIELDS],'plantilla-devoluciones.csv');
 $('#standard-export').onclick=()=>exportDashboard($('#standard-export'));
-let pendingImport=null;
-$('#import-file').onchange=()=>{pendingImport=null;$('#save-import').disabled=true;$('#import-result').textContent='';};
-$('#validate-import').onclick=()=>act($('#validate-import'),async()=>{pendingImport=null;$('#save-import').disabled=true;const file=$('#import-file').files[0];if(!file)throw new Error('Selecciona un archivo CSV.');if(file.size>15*1024*1024)throw new Error('El archivo supera 15 MB.');const rows=parseCSV(await file.text());validateRows(rows,state.catalogs);pendingImport=rows;$('#import-result').textContent=`Validación correcta: ${new Set(rows.map(r=>r.gestion)).size} gestiones y ${rows.length} productos. Revisa el archivo antes de importar.`;$('#save-import').disabled=false;});
-$('#save-import').onclick=()=>act($('#save-import'),async()=>{if(!pendingImport)throw new Error('Valida el archivo primero.');if(!confirm(`¿Importar ${pendingImport.length} líneas del histórico?`))return;const result=await rpc('dev_importar_historico',{p_filas:pendingImport});pendingImport=null;$('#import-file').value='';$('#import-result').textContent=`Importación guardada: ${result.gestiones} gestiones y ${result.lineas} productos.`;await reload();}).then(()=>{$('#save-import').disabled=!pendingImport});
+let pendingImport=null,importRevision=0;
+function invalidateImport(){importRevision++;pendingImport=null;$('#save-import').disabled=true;$('#import-result').textContent='';$('#import-preview').hidden=true;$('#import-preview-head').innerHTML='';$('#import-preview-body').innerHTML='';}
+$('#import-paste').addEventListener('input',invalidateImport);
+$('#import-file').onchange=invalidateImport;
+$('#clear-import').onclick=()=>{if(state.busy)return;$('#import-paste').value='';$('#import-file').value='';invalidateImport();};
+$('#copy-import-headers').onclick=()=>act($('#copy-import-headers'),async()=>{await navigator.clipboard.writeText(ORIGINAL_HEADERS.join('\t'));notice('Encabezados copiados. Puedes pegarlos en la primera fila de Excel.');});
+$('#validate-import').onclick=()=>act($('#validate-import'),async()=>{
+ invalidateImport();const revision=importRevision,text=$('#import-paste').value;
+ let rows,originals;
+ if(text.trim()){({rows,originals}=parseExcelPaste(text,state.catalogs));}
+ else{const file=$('#import-file').files[0];if(!file)throw new Error('Pega las filas de Excel en el recuadro.');if(file.size>15*1024*1024)throw new Error('El archivo supera 15 MB.');rows=parseCSV(await file.text());validateRows(rows,state.catalogs);}
+ if(revision!==importRevision)throw new Error('El contenido cambió durante la validación. Valídalo nuevamente.');
+ const existing=new Set(state.rows.map(r=>r.gestion)),duplicate=rows.find(r=>existing.has(r.gestion));if(duplicate)throw new Error(`La gestión ${duplicate.gestion} ya está registrada. Retírala del bloque antes de importar.`);
+ pendingImport=rows;const headers=originals?ORIGINAL_HEADERS:FIELDS,preview=originals||rows;
+ $('#import-preview-head').innerHTML='<tr>'+headers.map(h=>`<th>${escape(h)}</th>`).join('')+'</tr>';
+ $('#import-preview-body').innerHTML=preview.slice(0,20).map(row=>'<tr>'+headers.map(h=>`<td>${escape(row[h]??'')}</td>`).join('')+'</tr>').join('');
+ $('#import-preview').hidden=false;$('#import-result').textContent=`Validación correcta: ${new Set(rows.map(r=>r.gestion)).size} gestiones y ${rows.length} productos. Vista previa de las primeras ${Math.min(20,rows.length)} líneas. Revisa los datos y pulsa Importar histórico para guardarlos.`;$('#save-import').disabled=false;
+});
+$('#save-import').onclick=()=>act($('#save-import'),async()=>{if(!pendingImport)throw new Error('Valida los datos primero.');const rows=pendingImport,revision=importRevision;if(!confirm(`¿Importar ${new Set(rows.map(r=>r.gestion)).size} gestiones y ${rows.length} líneas del histórico?`))return;const result=await rpc('dev_importar_historico',{p_filas:rows});pendingImport=null;if(revision===importRevision){$('#import-paste').value='';$('#import-file').value='';$('#import-preview').hidden=true;}$('#import-result').textContent=`Importación guardada: ${result.gestiones} gestiones y ${result.lineas} productos.`;await reload();}).then(()=>{$('#save-import').disabled=!pendingImport});
 $('#user-form').onsubmit=e=>{e.preventDefault();act(e.submitter,async()=>{$('#user-password-result').hidden=true;$('#user-initial-password').textContent='';const body=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.functions.invoke('admin-users',{body:{...body,action:'create_or_assign',rol:body.rol||'operador',puede_cierre_dia:false}});if(error){let message=error.message;try{const payload=await error.context.json();message=payload.message||payload.error||message}catch{}throw new Error(message)}if(!data?.ok)throw new Error(data?.error||'No se pudo crear el usuario.');e.target.reset();await showApp(currentUser);setView('usuarios');notice(data.created?'Usuario creado. Debe cambiar la contraseña temporal al ingresar.':'La cuenta ya existía. Se asignó su acceso sin cambiar su contraseña.');if(data.initial_password){$('#user-initial-password').textContent=data.initial_password;$('#user-password-result').hidden=false}});};
 let catalogType=null;
 $$('[data-add-catalog]').forEach(button=>button.onclick=()=>{catalogType=button.dataset.addCatalog;$('#catalog-title').textContent=catalogType==='cliente'?'Agregar Cliente':'Agregar Comentario';$('#catalog-help').textContent=catalogType==='cliente'?'El cliente quedará disponible para próximas devoluciones.':'El comentario quedará disponible como opción en Observación.';$('#catalog-form').reset();$('#catalog-message').textContent='';$('#catalog-dialog').showModal();$('#catalog-name').focus();});
