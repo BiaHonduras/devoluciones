@@ -11,7 +11,14 @@ export function originalDate(value){const s=String(value??'').trim();if(!s||['-'
  if(/^\d{5}(?:\.\d+)?$/.test(s)){const ms=(Number(s)-25569)*86400000;const dt=new Date(Math.round(ms/1000)*1000);year=dt.getUTCFullYear();month=dt.getUTCMonth()+1;day=dt.getUTCDate();h=dt.getUTCHours();m=dt.getUTCMinutes();sec=dt.getUTCSeconds();}
  else{const match=s.match(/^(?:(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})|(\d{4})-(\d{2})-(\d{2}))(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm|a\.?\s*m\.?|p\.?\s*m\.?)?)?$/i);if(!match)throw Error('usa día/mes/año, con hora opcional (por ejemplo 21/10/2026 14:30).');year=+(match[3]||match[4]);month=+(match[2]||match[5]);day=+(match[1]||match[6]);h=+(match[7]||0);m=+(match[8]||0);sec=+(match[9]||0);if(match[10]){if(h<1||h>12)throw Error('hora inválida.');h=h%12+(/p/i.test(match[10])?12:0);}}
  const check=new Date(Date.UTC(year,month-1,day));if(year<1900||year>2200||check.getUTCMonth()!==month-1||check.getUTCDate()!==day||h>23||m>59||sec>59)throw Error('fecha u hora inválida.');return new Date(Date.UTC(year,month-1,day,h+6,m,sec)).toISOString();}
-function unique(value,list,keys,label){const match=list.filter(x=>keys.some(k=>norm(x[k])===norm(value)));if(match.length!==1)throw Error(`${label} «${value}» ${match.length?'es ambiguo; utiliza el correo o código':'no existe en tu catálogo autorizado'}.`);return match[0];}
+function unique(value,list,keys,label){
+ const text=String(value??''),fold=v=>String(v??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');
+ let match=list.filter(x=>keys.some(k=>x[k]!=null&&String(x[k])===text));
+ if(!match.length)match=list.filter(x=>keys.some(k=>x[k]!=null&&fold(x[k])===fold(text)));
+ if(!match.length)match=list.filter(x=>keys.some(k=>x[k]!=null&&norm(x[k])===norm(text)));
+ const hint=keys.length===1&&keys[0]==='value'?'utiliza el nombre exacto del catálogo':'utiliza el correo o código';
+ if(match.length!==1)throw Error(`${label} «${value}» ${match.length?'es ambiguo; '+hint:'no existe en tu catálogo autorizado'}.`);return match[0];
+}
 // Commas delimit products. Quote an individual description when it contains a comma.
 export function splitProducts(value){const out=[];let cell='',quoted=false,closed=false;for(let i=0;i<String(value).length;i++){const c=String(value)[i];if(quoted){if(c==='"'){if(String(value)[i+1]==='"'){cell+='"';i++}else{quoted=false;closed=true}}else cell+=c;}else if(c==='"'&&!cell.trim()&&!closed){quoted=true;cell='';}else if(c===','){out.push(cell.trim());cell='';closed=false;}else if(closed){if(c.trim())throw Error('Revisa las comillas de la lista de productos.');}else cell+=c;}if(quoted)throw Error('Hay comillas sin cerrar en la lista de productos.');out.push(cell.trim());return out;}
 export function parseExcelPaste(text,catalog){if(new TextEncoder().encode(text).length>15*1024*1024)throw Error('El contenido supera 15 MB.');return parseExcelRows(tsv(text),catalog);}
@@ -24,7 +31,7 @@ export function parseExcelRows(input,catalog){let matrix=input.map(row=>row.map(
  for(const [k,h] of Object.entries(map))base[k]=original[h];base.gestion=base.gestion.toUpperCase();
  for(const k of FIELDS.filter(k=>k.startsWith('fecha_')))try{base[k]=originalDate(base[k])}catch(e){fail(map[k]||k,e)}
  base.estado=canonicalState(base.estado,base);
- try{base.sede=unique(base.sede,catalog.sedes,['codigo','nombre'],'Sede').codigo;for(const k of ['gestor_n1','gestor_n2','gestor_n4'])if(base[k]){const u=unique(base[k],catalog.usuarios,['correo','nombre_corto','usuario','id'],map[k]);if(!u.correo)throw Error(`${map[k]} no tiene correo configurado.`);base[k]=u.correo.toLowerCase();}for(const [k,list] of [['cliente','negocio'],['observacion','observaciones'],['estado','estados'],['liquidadora','liquidadoras']])if(base[k])base[k]=unique(base[k],catalog[list].map(value=>({value})),['value'],map[k]).value;}catch(e){fail('catálogos',e)}
+ try{base.sede=unique(base.sede,catalog.sedes,['codigo','nombre'],'Sede').codigo;for(const k of ['gestor_n1','gestor_n2','gestor_n4'])if(base[k]){const u=unique(base[k],catalog.usuarios,['correo','nombre_corto','usuario','id'],map[k]);if(!u.correo)throw Error(`${map[k]} no tiene correo configurado.`);base[k]=u.correo.toLowerCase();}for(const [k,list] of [['cliente','negocio'],['observacion','observaciones'],['estado','estados'],['liquidadora','liquidadoras']])if(base[k])base[k]=unique(base[k],[...new Set(catalog[list])].map(value=>({value})),['value'],map[k]).value;}catch(e){fail('catálogos',e)}
  let codes;try{codes=splitProducts(original.Codigo)}catch(e){fail('Codigo',e)}const count=codes.length;if(count>200)fail('Codigo','Máximo 200 productos por gestión.');if(codes.some(c=>!c))fail('Codigo','Hay un código vacío entre las comas.');
  const lists={Codigo:codes};for(const field of ['Descripcion','Cantidad','CostoSKU','Cajas/Fardos']){
   if(count===1)lists[field]=[original[field]];
