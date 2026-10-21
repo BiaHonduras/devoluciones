@@ -11,3 +11,20 @@ test('metrics count management IDs once and exclude missing elapsed times',()=>{
 const sum=a=>a.reduce((s,x)=>s+x,0);
 test('empty, duplicate, invalid numeric input and repeated names',()=>{assert.equal(buildReportModel([],catalogs).metrics.count,0);assert.equal(buildReportModel([],catalogs).metrics.mean,null);assert.throws(()=>buildReportModel([fixture[0],fixture[0]],catalogs),/duplicada/);const bad=structuredClone(fixture[0]);bad.devoluciones_detalle[0].costo_total='abc';assert.throws(()=>buildReportModel([bad],catalogs),/numérico inválido/);const names={...catalogs,usuarios:[{id:1,nombre_corto:'Mismo nombre'},{id:2,nombre_corto:'Mismo nombre'}]};const m=buildReportModel(fixture.slice(0,2),names);assert.equal(m.metrics.managers,2);assert.notEqual(m.records[0].manager,m.records[1].manager)});
 test('native XLSX dashboard, editable charts, numeric cells, identifier safety and filter formulas',async()=>{const template=await fs.readFile(new URL('../reports/dashboard-template.xlsx',import.meta.url)),{bytes,model}=await createDashboardXlsx({rows:fixture,catalogs,template,Zip});assert.equal(model.metrics.count,24);const zip=await Zip.loadAsync(bytes);const book=await zip.file('xl/workbook.xml').async('string');for(const name of ['Dashboard','Resumen','Gestiones','Detalle'])assert(book.includes(`name="${name}"`));assert(book.includes('calcMode="auto"'));const dashboard=await zip.file('xl/worksheets/sheet1.xml').async('string');assert(dashboard.includes('orientation="landscape"'));assert(dashboard.includes('INDIRECT'));assert(dashboard.includes('<x:v>6120</x:v>'));const source=await zip.file('xl/worksheets/sheet3.xml').async('string');assert(source.includes('Dashboard!$R$52'));assert(source.includes('COUNTIFS($X$6:X'));assert(source.includes('SUMIFS(Detalle!$AC$6:$AC$53'));const detail=await zip.file('xl/worksheets/sheet4.xml').async('string');assert(detail.includes('>000120</x:t>'));assert(detail.includes('>0001</x:t>'));assert(!detail.includes('<x:f>HYPERLINK'));assert(detail.includes('=HYPERLINK'));assert(detail.includes('ROUND(L6*AB6,2)'));const table=await zip.file('xl/tables/table1.xml').async('string');assert(table.includes('A5:AC29'));assert(table.includes('<x:autoFilter'));const charts=Object.keys(zip.files).filter(p=>/charts\/chart\d+\.xml$/.test(p));assert.equal(charts.length,4);for(const path of charts){const chart=await zip.file(path).async('string');assert(chart.includes('Resumen'));assert(chart.includes('<c:pt '));assert(!chart.includes('#REF!'))}const managerChart=await zip.file('xl/drawings/charts/chart4.xml').async('string');assert(managerChart.includes('barDir val="bar"'));if(process.env.BIA_REPORT_QA_OUTPUT)await fs.writeFile(process.env.BIA_REPORT_QA_OUTPUT,bytes)});
+
+// Excel rejects duplicate singleton worksheet properties and discards the Dashboard.
+test('Excel worksheet properties remain unique, ordered, and preserve the template tab color',async()=>{
+ const template=await fs.readFile(new URL('../reports/dashboard-template.xlsx',import.meta.url));
+ for(const rows of [fixture,fixture.slice(0,1),[]]){
+  const {bytes}=await createDashboardXlsx({rows,catalogs,template,Zip});
+  const zip=await Zip.loadAsync(bytes),sheet=await zip.file('xl/worksheets/sheet1.xml').async('string');
+  for(const tag of ['sheetPr','sheetViews','sheetData','pageMargins','pageSetup','drawing'])assert.equal((sheet.match(new RegExp('<x:'+tag+'(?:\\s|>)','g'))||[]).length,1,tag+' must appear exactly once');
+  const properties=sheet.match(/<x:sheetPr>[\s\S]*?<\/x:sheetPr>/)[0];
+  assert(properties.includes('<x:tabColor rgb="FF345A40"'));
+  assert(properties.includes('<x:pageSetUpPr fitToPage="1"/>'));
+  assert(sheet.indexOf('</x:sheetPr>')<sheet.indexOf('<x:sheetViews>'));
+  assert(sheet.indexOf('<x:pageMargins ')<sheet.indexOf('<x:pageSetup '));
+  assert(sheet.indexOf('<x:pageSetup ')<sheet.indexOf('<x:drawing '));
+  assert(sheet.includes('<x:c r="A7"'));
+ }
+});
