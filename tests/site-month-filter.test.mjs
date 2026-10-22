@@ -1,0 +1,11 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import {filterRows} from '../logic.mjs';import {monthOf} from '../dashboard-charts.mjs';import {isOpenManagement} from '../open-management.mjs';
+test('actual UI handlers combine sede and month, update dashboard/detail/export, and clear filters',()=>{
+ const source=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');const nodes=new Map(),$=id=>{if(!nodes.has(id))nodes.set(id,{value:'',checked:false,textContent:'',type:id==='#only-open'?'checkbox':'select'});return nodes.get(id)};
+ const state={rows:[{id:'A',sede:'SPS',fecha_registro:'2026-10-01T12:00:00Z',estado:'Ingresada'},{id:'B',sede:'TGU',fecha_registro:'2026-10-02T12:00:00Z',estado:'Finalizada'},{id:'C',sede:'SPS',fecha_registro:'2026-09-01T12:00:00Z',estado:'Ingresada'}],filtered:[],page:4,openPage:3};
+ for(const id of ['#from','#to','#filter-sede','#filter-estado','#filter-gestor','#filter-text','#filter-month','#only-open'])$(id);
+ let dashboard,detail;const context={state,names:{},$,$$:()=>[...nodes.entries()].filter(([k])=>!['#site-buttons','#clear-filters','#export-scope','#entry-form [name=sede]'].includes(k)).map(([,v])=>v),filterRows,monthOf,isOpenManagement,notice(){},renderSiteButtons(){},renderDashboard(){dashboard=state.filtered.map(r=>r.id)},renderDetail(){detail=state.filtered.map(r=>r.id)}};vm.createContext(context);
+ vm.runInContext(source.slice(source.indexOf('function applyFilters(){'),source.indexOf('function bars(')),context);
+ for(const prefix of ["$('#site-buttons').onclick=", "$('#clear-filters').onclick="]){const line=source.split('\n').find(l=>l.startsWith(prefix));vm.runInContext(line,context)}
+ $('#filter-month').value='2026-10';$('#site-buttons').onclick({target:{closest:()=>({dataset:{site:'SPS'},disabled:false})}});assert.deepEqual(dashboard,['A']);assert.deepEqual(detail,['A']);assert.match($('#export-scope').textContent,/1 gestiones/);assert.equal(state.page,1);assert.equal($('#entry-form [name=sede]').value,'SPS');
+ $('#filter-month').value='2026-09';context.applyFilters();assert.deepEqual(dashboard,['C']);$('#clear-filters').onclick();assert.equal(state.filtered.length,3);assert.equal($('#filter-month').value,'');assert.equal($('#filter-sede').value,'');
+});
