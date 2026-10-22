@@ -44,3 +44,9 @@ Consolidado y la hoja Detalle del dashboard exportado comparten `consolidated.mj
 Se restauró el controlador de clics de Editar/Eliminar/abrir seguimiento y la paginación. El listado de usuarios y el menú muestran `usuarios.nombre_corto`; `database/usuarios_nombre_corto.sql` agrega esa propiedad a `bia_list_users` sin cambiar su acceso por sede.
 
 Verificado: 34 pruebas automatizadas, apertura del Excel con openpyxl y navegador con datos sintéticos para edición/guardado, eliminación cancelada/confirmada, paginación, sedes, rótulos y nombres cortos.
+
+## Gestiones abiertas e intranet · 22 de octubre de 2026
+
+El Dashboard incluye Gestiones abiertas con conteo por estado, próximo paso, responsable actual y fecha/horas en la etapa vigente. Lista primero las más antiguas, con paginación de diez gestiones y acceso directo al seguimiento. Abiertas: Ingresada, Enviado a Liquidación y Nota de Débito Entregada. Finalizada, Anulada y eliminadas quedan excluidas.
+
+El filtro Solo pendientes de seguimiento se combina con sede, fechas, gestor, estado y búsqueda existentes. Ver todas en el consolidado activa ese filtro. El consolidado conserva las 31 columnas, utiliza ámbar suave en las filas pendientes y agrega una indicación textual debajo del ID de la gestión. No cambia estados ni fechas de los registros. El enlace Intranet BIA Honduras regresa al portal corporativo conservando la sesión.
