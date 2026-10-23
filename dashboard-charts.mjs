@@ -8,15 +8,23 @@ export function dailyCounts(rows,month=''){
  if(/^\d{4}-(0[1-9]|1[0-2])$/.test(month)){const [year,m]=month.split('-').map(Number),days=new Date(Date.UTC(year,m,0)).getUTCDate();for(let d=1;d<=days;d++){const key=`${month}-${String(d).padStart(2,'0')}`;if(!counts.has(key))counts.set(key,0)}}
  return [...counts].sort(([a],[b])=>a.localeCompare(b));
 }
-export function monthlyAverages(rows,month=''){
- const months=month?[month]:availableMonths(rows).reverse();
- return months.map(key=>{const [year,m]=key.split('-').map(Number),days=new Date(Date.UTC(year,m,0)).getUTCDate(),count=rows.filter(row=>monthOf(row)===key).length;return {month:key,days,count,average:count/days}});
+export function destinationOf(row){const value=String(row.bodega_destino??'').trim();return /^\d{1,3}$/.test(value)?value.padStart(3,'0'):value||'Sin destino'}
+export function dayOf(row){const raw=row.devoluciones_detalle?.[0]?.datos_originales?.DIA;const day=Number(raw);return Number.isInteger(day)&&day>=1&&day<=31?day:Number(localDay(row.fecha_registro).slice(-2))}
+export const stateOf=row=>String(row.estado||'Sin estado').trim()||'Sin estado';
+function seriesColor(state,destination){if(state==='Finalizada'&&destination==='030')return '#156184';if(state==='Finalizada'&&destination==='095')return '#f47735';let hash=0;for(const c of JSON.stringify([state,destination]))hash=(hash*31+c.charCodeAt(0))>>>0;return `hsl(${hash%360} 55% 40%)`}
+export function dailySeries(rows,month='',filters={}){
+ const selected=rows.filter(row=>(!month||monthOf(row)===month)&&(!filters.day||dayOf(row)===Number(filters.day))&&(!filters.state||stateOf(row)===filters.state)&&(!filters.destination||destinationOf(row)===filters.destination));
+ const series=new Map();for(const row of selected){const state=stateOf(row),destination=destinationOf(row),key=JSON.stringify([state,destination]);if(!series.has(key))series.set(key,{state,destination,label:`${state} (Bodega ${destination})`,color:seriesColor(state,destination),values:Array(31).fill(0),total:0});const item=series.get(key);item.values[dayOf(row)-1]++;item.total++}
+ return {count:selected.length,series:[...series.values()].sort((a,b)=>(a.state==='Finalizada'?0:1)-(b.state==='Finalizada'?0:1)||a.state.localeCompare(b.state,'es')||a.destination.localeCompare(b.destination,'es',{numeric:true}))};
 }
-const decimal=value=>new Intl.NumberFormat('es-HN',{minimumFractionDigits:2,maximumFractionDigits:2}).format(value);
-export function dailyChart(rows,month=''){
- const entries=monthlyAverages(rows,month);if(!entries.length)return '<p class="empty">No hay devoluciones en esta selección.</p>';
- const max=Math.max(...entries.map(e=>e.average),1);
- return `<div class="monthly-averages" role="group" aria-label="Promedio diario de devoluciones por mes">${entries.map(e=>`<div class="bar-row"><div class="bar-label"><span>${escape(monthLabel(e.month))}</span><strong>${decimal(e.average)} <small>gestiones por día</small></strong></div><div class="bar-track"><div class="bar-fill" style="width:${e.average/max*100}%"></div></div><p class="muted">${e.count} gestiones ÷ ${e.days} días calendario</p></div>`).join('')}</div><p class="muted">Promedio diario por mes. Se incluyen los días sin registros. Los demás filtros limitan las gestiones del cálculo.</p>`;
+export function dailyChart(rows,month='',filters={}){
+ const {series,count}=dailySeries(rows,month,filters),slot=Math.max(32,series.length*6+8),width=Math.max(1050,31*slot+65),plot=210,base=245;
+ const max=Math.max(1,...Array.from({length:31},(_,d)=>Math.max(0,...series.map(s=>s.values[d])))),tick=Math.max(1,Math.ceil(max/5)),ceiling=tick*5;
+ const grid=Array.from({length:6},(_,i)=>{const value=tick*i,y=base-value/ceiling*plot;return `<line x1="45" y1="${y}" x2="${width-10}" y2="${y}" stroke="#e4eaf1"/><text x="35" y="${y+4}" text-anchor="end">${value}</text>`}).join('');
+ const step=(width-65)/31,barWidth=Math.min(18,(step-8)/Math.max(series.length,1));
+ const bars=Array.from({length:31},(_,d)=>{const center=45+step*(d+.5);return series.map((s,i)=>{const value=s.values[d],height=value/ceiling*plot;if(!value)return '';return `<rect x="${center-series.length*barWidth/2+i*barWidth}" y="${base-height}" width="${Math.max(1,barWidth-1)}" height="${height}" fill="${s.color}" rx="1"><title>Día ${d+1} · ${escape(s.label)}: ${value} gestiones</title></rect>`}).join('')+`<text x="${center}" y="267" text-anchor="middle">${d+1}</text>`}).join('');
+ const legend=series.map(s=>`<li><i style="background:${s.color}"></i><span>${escape(s.label)}</span><strong>${s.total}</strong></li>`).join('');
+ return `<ul class="daily-legend" aria-label="Estado y Bodega Destino">${legend}</ul><div class="daily-chart"><svg role="img" aria-label="Cantidad de gestiones por día, Estado y Bodega Destino" viewBox="0 0 ${width} 290" style="min-width:${width}px">${grid}${bars}<text x="${width/2}" y="287" text-anchor="middle">DÍA</text></svg></div>${count?'':'<p class="empty">No hay devoluciones en esta selección.</p>'}<p class="muted">${count} gestiones · ${month?escape(monthLabel(month)):'Todos los meses: las cantidades se agrupan por número de día'}. Una gestión se cuenta una sola vez, sin multiplicarla por sus SKU. Día según la columna DIA importada o la fecha de registro en Honduras.</p>${series.length?`<details><summary>Ver valores por Día, Estado y Bodega Destino</summary><div class="table-wrap"><table><thead><tr><th>Día</th>${series.map(s=>`<th>${escape(s.label)}</th>`).join('')}</tr></thead><tbody>${Array.from({length:31},(_,d)=>`<tr><td>${d+1}</td>${series.map(s=>`<td>${s.values[d]}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`:''}`;
 }
 const palette=['#3268af','#62a19b','#c79a48','#8d7db0','#da8b79','#8398af','#b8aa89','#668a51'];
 export function motiveChart(entries){
