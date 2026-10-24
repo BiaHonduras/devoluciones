@@ -21,8 +21,8 @@ text(dash,'A48:X48','FILTROS DEL REPORTE',{bold:true,color:C.green});
 text(dash,'A49:X49','Selecciona sede, gestor y estado; ajusta las fechas en las celdas claras.',{color:C.muted});
 for(const [label,range,title,value] of [['A51:D51','A52:D53','Sede','Todas'],['F51:J51','F52:J53','Gestor N1','Todos'],['L51:P51','L52:P53','Estado','Todos'],['R51:T51','R52:T53','Desde',46000],['V51:X51','V52:X53','Hasta',46030]]){text(dash,label,title,{bold:true,color:C.muted});text(dash,range,value,{fill:C.white,color:'#1D608B',size:11});dash.getRange(range).format.borders={preset:'outside',style:'thin',color:C.line};}
 dash.getRange('R52:T53').setNumberFormat('dd/mm/yyyy');dash.getRange('V52:X53').setNumberFormat('dd/mm/yyyy');
-text(dash,'A55:X55','Los filtros de Excel acotan la selección exportada desde la web.',{color:C.muted,size:9});
-text(dash,'A56:X56','Motivos y gestores: siete categorías principales del reporte y otras.',{color:C.muted,size:9});
+text(dash,'A55:X55','',{color:C.muted,size:9});
+text(dash,'A56:X56','',{color:C.muted,size:9});
 text(dash,'A57:X57','',{color:C.muted,size:9});
 sum.getRange('A1').values=[['Resumen de cálculo']];sum.getRange('A1:AH1').format.font={bold:true,color:C.green,size:14};sum.getRange('A2').values=[['Indicadores calculados desde las gestiones incluidas por los filtros del Dashboard.']];sum.getRange('A3:B3').values=[['Indicador','Valor']];
 sum.getRange('A4:A11').values=[['Total gestiones'],['Promedio N1–N4 (horas)'],['Finalizadas'],['Gestores con registros'],['Costo total (L)'],['Resolución'],['En proceso'],['Líneas de producto']];
@@ -49,7 +49,10 @@ for(const [sh,cols,width] of [[data,['E'],40],[data,['D','G','H'],30],[detail,['
 text(dash,'A28:R28','GESTIONES RECIENTES',{bold:true,color:C.green,size:12});
 const columns=[['A','C','Gestión','A'],['D','E','Sede','C'],['F','J','Cliente','E'],['K','O','Motivo','G'],['P','R','N1–N4 (h)','U']];
 for(const [from,to,title,col] of columns){text(dash,`${from}30:${to}30`,title,{fill:C.green,color:C.white,bold:true,size:9});for(let row=31;row<=40;row++){text(dash,`${from}${row}:${to}${row}`,'',{fill:row%2?C.white:'#ECEDE3',size:9});dash.getRange(`${from}${row}`).formulas=[[`=IF(${row-30}>Resumen!$B$4,"",INDEX(Gestiones!$${col}$6:$${col}$6,MATCH(${row-30},Gestiones!$AC$6:$AC$6,0)))`]];if(col==='U')dash.getRange(`${from}${row}:${to}${row}`).setNumberFormat('0.00');}}
-const charts=[['line','H3:K34','A11','M26','Devoluciones por período',[C.ink,C.green,C.gold]],['doughnut','AD3:AE11','S11','X26','Motivos de devolución',[C.green]],['line','D3:E6','N11','R26','Tiempo entre niveles (horas)',[C.gold]],['bar','AG3:AH11','S28','X41','Registros por gestor',[C.green]]];
+for(const [label,range,title,value] of [['A10:D10','A11:D12','Mes','Todos los meses'],['F10:I10','F11:I12','Estado','Todos'],['K10:M10','K11:M12','Bodega Destino','Todas las bodegas']]){text(dash,label,title,{bold:true,color:C.muted,size:8});text(dash,range,value,{fill:C.white,color:'#1D608B',size:9});dash.getRange(range).format.borders={preset:'outside',style:'thin',color:C.line};}
+for(const [ref,c]of [['A11','BP'],['F11','AC'],['K11','BQ']])dash.getRange(ref).dataValidation={rule:{type:'list',formula1:`INDIRECT("Resumen!$${c}$2:$${c}$2")`}};
+for(const ref of ['R52','V52'])dash.getRange(ref).dataValidation={rule:{type:'date',operator:'between',formula1:1,formula2:2958465}};
+const charts=[['line','H3:K34','A13','M26','Devoluciones por Día',[C.ink,C.green,C.gold]],['doughnut','AD3:AE11','S11','X26','Motivos de Devolución',[C.green]],['line','D3:E6','N11','R26','Tiempo entre niveles (horas)',[C.gold]],['bar','AG3:AH11','S28','X41','Registros por gestor',[C.green]]];
 for(const [type,range,from,to,title,colors] of charts){const chart=dash.charts.add(type,sum.getRange(range));chart.title=title;chart.titleTextStyle.typeface='Arial';chart.titleTextStyle.fontSize=13;chart.setPosition(from,to);chart.legend={position:'bottom',textStyle:{typeface:'Arial',fontSize:10}};if(type!=='doughnut'){chart.xAxis={axisType:'textAxis',textStyle:{typeface:'Arial',fontSize:9}};chart.yAxis={numberFormatCode:title.includes('horas')?'0.0':'0',numberFormatSourceLinked:false,textStyle:{typeface:'Arial',fontSize:10}};if(type==='line'&&range==='H3:K34')chart.xAxis.tickLabelInterval=5;}
 for(let i=0;i<chart.series.items.length;i++){chart.series.items[i].fill=colors[i%colors.length];if(type==='line')chart.series.items[i].line={fill:colors[i%colors.length],style:'solid',width:2};}if(range!=='H3:K34'&&type!=='doughnut')chart.hasLegend=false;}
 wb.recalculate();
