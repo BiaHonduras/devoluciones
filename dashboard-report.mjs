@@ -1,4 +1,4 @@
-import {dailyReportModel,dailyRecordValues,fillDailyCells,chartLabels,dailyChartXml} from './daily-report.mjs?v=20261024-graficos';
+import {dailyReportModel,dailyRecordValues,fillDailyCells,chartLabels,dailyChartXml} from './daily-report.mjs?v=20261024-grafico-visible';
 import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261021-consolidado';
 // Browser export fills the styled, native-chart XLSX template in reports/.
 // The template is authored with @oai/artifact-tool; JSZip only packages it.
