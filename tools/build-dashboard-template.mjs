@@ -9,9 +9,9 @@ for(const sh of [dash,sum,data,detail]){sh.showGridLines=false;sh.getRange('A1:A
 dash.tabColor=C.green;sum.tabColor=C.olive;
 dash.getRange('A1:X58').format.fill=C.cream;dash.getRange('A1:X58').format.columnWidth=7.3;dash.getRange('A1:X58').format.rowHeight=12;
 function text(sh,range,value,{fill,color=C.ink,size=10,bold=false,align='left'}={}){const r=sh.getRange(range);if(range.includes(':'))r.merge();sh.getRange(range.split(':')[0]).values=[[value]];r.format.font={name:'Arial',size,bold,color};r.format.horizontalAlignment=align;if(fill)r.format.fill=fill;}
-text(dash,'A1:X2','BIA HONDURAS',{size:20,bold:true,color:C.green});
-text(dash,'A3:X3','CONTROL DE DEVOLUCIONES',{size:16,bold:true});
-text(dash,'A4:X4','Operación de bodega y logística de café',{color:C.muted,size:10});
+text(dash,'A1:X2','BIA HONDURAS',{size:20,bold:true,color:C.green,align:'center'});
+text(dash,'A3:X3','CONTROL DE DEVOLUCIONES',{size:16,bold:true,align:'center'});
+text(dash,'A4:X4','',{color:C.muted,size:10});
 dash.getRange('A5:X5').format.borders={bottom:{style:'medium',color:C.gold}};
 dash.getRange('A3:X3').format.rowHeight=22;dash.getRange('A4:X4').format.rowHeight=16;
 const cards=[['A6:F6','A7:F9','TOTAL DEVOLUCIONES','=Resumen!B4'],['G6:L6','G7:L9','TIEMPO N1–N4 (HORAS)','=Resumen!B5'],['M6:R6','M7:R9','DEVOLUCIONES RESUELTAS','=Resumen!B6'],['S6:X6','S7:X9','GESTORES ACTIVOS','=Resumen!B7']];
@@ -48,7 +48,7 @@ for(const c of ['A','H','J'])detail.getRange(c+'6').setNumberFormat('@');
 for(const [sh,cols,width] of [[data,['E'],40],[data,['D','G','H'],30],[detail,['I','K'],42],[detail,['D','E','F','M','P'],30],[data,['B','N','O','P','Q'],24],[detail,['B','Q','R','S','T'],24]])for(const c of cols)sh.getRange(c+'1:'+c+'6').format.columnWidth=width;
 text(dash,'A28:R28','GESTIONES RECIENTES',{bold:true,color:C.green,size:12});
 const columns=[['A','C','Gestión','A'],['D','E','Sede','C'],['F','J','Cliente','E'],['K','O','Motivo','G'],['P','R','N1–N4 (h)','U']];
-for(const [from,to,title,col] of columns){text(dash,`${from}30:${to}30`,title,{fill:C.green,color:C.white,bold:true,size:9});for(let row=31;row<=40;row++){text(dash,`${from}${row}:${to}${row}`,'',{fill:row%2?C.white:'#ECEDE3',size:9});dash.getRange(`${from}${row}`).formulas=[[`=IF(ROWS($A$31:A${row})>Resumen!$B$4,"",INDEX(Gestiones!$${col}$6:$${col}$6,MATCH(ROWS($A$31:A${row}),Gestiones!$AC$6:$AC$6,0)))`]];if(col==='U')dash.getRange(`${from}${row}:${to}${row}`).setNumberFormat('0.00');}}
+for(const [from,to,title,col] of columns){text(dash,`${from}30:${to}30`,title,{fill:C.green,color:C.white,bold:true,size:9});for(let row=31;row<=40;row++){text(dash,`${from}${row}:${to}${row}`,'',{fill:row%2?C.white:'#ECEDE3',size:9});dash.getRange(`${from}${row}`).formulas=[[`=IF(${row-30}>Resumen!$B$4,"",INDEX(Gestiones!$${col}$6:$${col}$6,MATCH(${row-30},Gestiones!$AC$6:$AC$6,0)))`]];if(col==='U')dash.getRange(`${from}${row}:${to}${row}`).setNumberFormat('0.00');}}
 const charts=[['line','H3:K34','A11','M26','Devoluciones por período',[C.ink,C.green,C.gold]],['doughnut','AD3:AE11','S11','X26','Motivos de devolución',[C.green]],['line','D3:E6','N11','R26','Tiempo entre niveles (horas)',[C.gold]],['bar','AG3:AH11','S28','X41','Registros por gestor',[C.green]]];
 for(const [type,range,from,to,title,colors] of charts){const chart=dash.charts.add(type,sum.getRange(range));chart.title=title;chart.titleTextStyle.typeface='Arial';chart.titleTextStyle.fontSize=13;chart.setPosition(from,to);chart.legend={position:'bottom',textStyle:{typeface:'Arial',fontSize:10}};if(type!=='doughnut'){chart.xAxis={axisType:'textAxis',textStyle:{typeface:'Arial',fontSize:9}};chart.yAxis={numberFormatCode:title.includes('horas')?'0.0':'0',numberFormatSourceLinked:false,textStyle:{typeface:'Arial',fontSize:10}};if(type==='line'&&range==='H3:K34')chart.xAxis.tickLabelInterval=5;}
 for(let i=0;i<chart.series.items.length;i++){chart.series.items[i].fill=colors[i%colors.length];if(type==='line')chart.series.items[i].line={fill:colors[i%colors.length],style:'solid',width:2};}if(range!=='H3:K34'&&type!=='doughnut')chart.hasLegend=false;}
