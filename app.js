@@ -2,7 +2,7 @@ import {availableMonths,monthOf,monthLabel,destinationOf,stateOf,dailyChart,moti
 import {isOpenManagement,followupFor,openManagements} from './open-management.mjs?v=20261022-1';
 import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261021-consolidado';
 import {trackingPresentation} from './tracking-flow.mjs?v=20261021-entrega';
-import {createDeliveryUI} from './delivery-ui.mjs?v=20261021-entrega';
+import {createDeliveryUI} from './delivery-ui.mjs?v=20261024-impresion';
 import {groupedProducts} from './product-lists.mjs?v=20261021-multisku-orden';
 import { managementActions } from './row-actions.mjs?v=20261023-roles';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
