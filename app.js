@@ -1,3 +1,4 @@
+import {askDeliveryContinuation} from './continuation-dialog.mjs?v=20261026-si-no';
 import {availableMonths,monthOf,monthLabel,destinationOf,stateOf,dailyChart,motiveChart} from './dashboard-charts.mjs?v=20261023-botones';
 import {isOpenManagement,followupFor,openManagements} from './open-management.mjs?v=20261022-1';
 import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261021-consolidado';
@@ -123,8 +124,11 @@ $('#tracking-actions').onclick=e=>{const button=e.target.closest('button');if(!b
   const liquidator=$('#tracking-liquidator').value;if(!liquidator)throw new Error('Selecciona una liquidadora.');
   const result=await deliveries.take(r,manager,liquidator,comment);await findManagement(r.gestion);await reload();
   if(result.ya_existia){notice('La gestión ya tiene un control de entrega.');await deliveries.forManagement(state.tracking);return;}
-  if(confirm('¿Deseas gestionar otro registro para este control de entrega?')){clearTracking();notice('Gestión N2 guardada. Busca el siguiente registro; el control se conserva pendiente.');}
-  else await deliveries.finish();return;
+  const continuar=await askDeliveryContinuation($('#delivery-continue-dialog'));
+  if(continuar===true){clearTracking();notice('Gestión N2 guardada. Busca el siguiente registro; el control se conserva pendiente.');}
+  else if(continuar===false)await deliveries.finish();
+  else notice('Gestión N2 guardada. El control de entrega queda pendiente.');
+  return;
  }
  if(button.hasAttribute('data-n3-n4')){
   if(r.estado==='Enviado a Liquidacion'&&!confirm('¿Se entregaron las Notas de Débito?'))return;
