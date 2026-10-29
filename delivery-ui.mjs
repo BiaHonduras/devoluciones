@@ -1,4 +1,4 @@
-import {htmlEscape as e,renderDeliveryPaper,deliverySkuCodes} from './delivery-print.mjs?v=20261029-formato';
+import {htmlEscape as e,renderDeliveryPaper,deliverySkuCodes} from './delivery-print.mjs?v=20261029-formato-v2';
 const $=s=>document.querySelector(s),day=v=>new Intl.DateTimeFormat('es-HN',{dateStyle:'short',timeZone:'America/Tegucigalpa'}).format(new Date(v));
 export function createDeliveryUI({rpc,getUserId,notice,isReadOnly=()=>false}){
  let active=null,list=[],doc=null,editing=false,busy=false,printing=false;
@@ -22,3 +22,4 @@ export function createDeliveryUI({rpc,getUserId,notice,isReadOnly=()=>false}){
  $('#delivery-list-body').onclick=event=>{const openButton=event.target.closest('[data-open-delivery]'),resumeButton=event.target.closest('[data-resume-delivery]');if(openButton)run(()=>open(openButton.dataset.openDelivery));else if(resumeButton)run(async()=>{const selected=await rpc('dev_entrega_obtener',{p_id:resumeButton.dataset.resumeDelivery});if(selected.cerrado_at||selected.creado_por!==getUserId())throw Error('Ese control no está abierto para tu usuario.');active=selected;renderActive();notice('Control seleccionado. Busca otra gestión Ingresada para agregarla.');$('#management-search').focus();});};
  return {refresh,get active(){return active},async take(row,manager,liquidator,comment){const result=await rpc('dev_tomar_gestion_n2',{p_id:row.id,p_version:row.version,p_gestor:manager,p_liquidadora:liquidator,p_entrega:active?.id||null,p_comentario:comment});if(!result.ya_existia)active=result.control;await refresh();return result;},finish,async forManagement(row){const result=await rpc('dev_entrega_recuperar',{p_id:row.id,p_version:row.version});await refresh();await open(result.control.id);},clear(){active=null;doc=null;list=[];editing=false;if(dialog.open)dialog.close();$('#delivery-list-body').innerHTML='';renderActive();},selectedFor(row){return row.estado==='Ingresada'&&active?{gestor:active.gestor_n2,liquidadora:active.liquidadora}:null}};
 }
+

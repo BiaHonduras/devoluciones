@@ -4,7 +4,7 @@ import {availableMonths,monthOf,monthLabel,destinationOf,stateOf,dailyChart,moti
 import {isOpenManagement,followupFor,openManagements} from './open-management.mjs?v=20261022-1';
 import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261021-consolidado';
 import {trackingPresentation} from './tracking-flow.mjs?v=20261021-entrega';
-import {createDeliveryUI} from './delivery-ui.mjs?v=20261029-formato';
+import {createDeliveryUI} from './delivery-ui.mjs?v=20261029-formato-v2';
 import {groupedProducts} from './product-lists.mjs?v=20261021-multisku-orden';
 import { managementActions } from './row-actions.mjs?v=20261023-roles';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
@@ -171,5 +171,6 @@ $('#catalog-cancel').onclick=()=>$('#catalog-dialog').close();
 $('#catalog-form').onsubmit=async e=>{e.preventDefault();if(state.busy)return;const button=e.submitter;state.busy=true;button.disabled=true;$('#catalog-cancel').disabled=true;$('#catalog-message').textContent='Guardando…';try{const value=await rpc('dev_agregar_catalogo',{p_tipo:catalogType,p_nombre:$('#catalog-name').value});const list=catalogType==='cliente'?state.catalogs.negocio:state.catalogs.observaciones;if(!list.includes(value))list.push(value);list.sort((a,b)=>a.localeCompare(b,'es'));if(catalogType==='cliente'){$('#clientes').innerHTML=list.map(n=>`<option value="${escape(n)}"></option>`).join('');$('#entry-form [name=cliente]').value=value;}else{options($('#entry-form [name=observacion]'),list);$('#entry-form [name=observacion]').value=value;}$('#catalog-dialog').close();notice(`${catalogType==='cliente'?'Cliente':'Comentario'} disponible: ${value}`);}catch(err){$('#catalog-message').textContent=err.message||'No se pudo guardar. Intenta nuevamente.';}finally{state.busy=false;button.disabled=false;$('#catalog-cancel').disabled=false;}};
 $('#catalog-dialog').addEventListener('cancel',e=>{if(state.busy)e.preventDefault()});
 try{const {data,error}=await supabase.auth.getUser();if(data?.user&&!error)await showApp(data.user)}catch(e){$('#login-message').textContent=e.message}
+
 
 
