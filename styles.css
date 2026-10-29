@@ -48,3 +48,7 @@
 
 .confirm-dialog{width:min(440px,calc(100% - 32px));box-sizing:border-box;border:1px solid var(--line);border-radius:14px;padding:24px;color:var(--ink);box-shadow:0 24px 80px #102b5140}.confirm-dialog::backdrop{background:#102b5180}.confirm-dialog h2{font-size:18px;line-height:1.45;margin:0 0 20px}.confirm-dialog .form-actions{justify-content:flex-end;margin:0}.confirm-dialog .form-actions button{min-width:80px}
 
+
+
+/* Tarjetas compactas: misma escala de lectura que Resumen y Vencimientos. */
+.metrics{gap:14px;margin-bottom:16px}.metric{min-width:0;padding:16px}.metric p{font-size:12px;line-height:1.35;letter-spacing:0;text-transform:none;margin-bottom:8px;overflow-wrap:anywhere}.metric strong{font-size:24px;line-height:1.2;letter-spacing:-.4px;overflow-wrap:anywhere}.metric small{font-size:11px;line-height:1.4;margin-top:6px}.panel{padding:18px;margin-bottom:16px}.section-line{gap:12px}h1{font-size:24px}.form-grid{gap:14px}.form-grid label{gap:5px}.form-grid input,.form-grid select{min-height:38px;padding:8px 10px}.form-grid textarea{padding:8px 10px}.stage-times{gap:12px}aside nav button[data-view=ingreso] span,aside nav button[data-view=seguimiento] span,aside nav button[data-view=detalle] span{white-space:nowrap}@media(max-width:600px){.metrics{gap:10px}.metric{padding:14px}.panel{padding:16px}.metric strong{font-size:24px}h1{font-size:22px}}
