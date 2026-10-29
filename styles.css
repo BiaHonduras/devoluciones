@@ -41,3 +41,13 @@
 .aside-bottom .session-user-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.session-user-row #user-label{margin:0;min-width:0;overflow-wrap:anywhere}.session-user-row #logout{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;padding:8px;flex:none}
 
 .confirm-dialog{width:min(440px,calc(100% - 32px));box-sizing:border-box;border:1px solid var(--line);border-radius:14px;padding:24px;color:var(--ink);box-shadow:0 24px 80px #102b5140}.confirm-dialog::backdrop{background:#102b5180}.confirm-dialog h2{font-size:18px;line-height:1.45;margin:0 0 20px}.confirm-dialog .form-actions{justify-content:flex-end;margin:0}.confirm-dialog .form-actions button{min-width:80px}
+
+/* Typography and borders from Control de Entrega de Devoluciones.xlsx. */
+.delivery-page{font-family:"Aptos Narrow","Arial Narrow",Arial,sans-serif;font-size:10pt}
+.delivery-title{justify-content:center;margin:0 0 2mm}.delivery-title h2{font-family:"Aptos Narrow","Arial Narrow",Arial,sans-serif;font-size:12pt}
+.delivery-meta{font-size:12pt;margin:0}.delivery-meta th{background:#fff!important;text-align:center;padding:.2mm 1mm}.delivery-meta td{padding:.2mm 1mm}
+.delivery-paper-table{font-size:10pt}.delivery-paper-table th{font-family:"Aptos Narrow","Arial Narrow",Arial,sans-serif;font-size:12pt;line-height:1.1;padding:.5mm .6mm}.delivery-paper-table thead tr:last-child th{font-size:11pt}
+.delivery-paper-table td{line-height:3.6mm;padding:.2mm .6mm}.delivery-paper-table .delivery-blank td{height:3.6mm;line-height:3.6mm}
+.delivery-credit{font-family:"Arial Nova Cond","Arial Narrow",Arial,sans-serif;font-size:11pt;padding:0;margin-top:3mm}.delivery-credit h3{font-size:11pt;border-bottom:1px solid #111;margin:0;padding:.3mm}.delivery-credit>div{min-height:6mm;grid-template-columns:35% 25% 8% 32%;border-bottom:1px solid #111}.delivery-credit>div:last-child{border-bottom:0}.delivery-credit>div>span:first-child{padding-left:1mm}.delivery-sign-line{margin:0;border:0}
+
+.delivery-meta th,.delivery-meta td{font-size:12pt}.delivery-paper-table td:first-child{font-weight:700}

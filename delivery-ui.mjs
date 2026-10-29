@@ -1,4 +1,4 @@
-import {htmlEscape as e,renderDeliveryPaper,deliverySkuCodes} from './delivery-print.mjs?v=20261024-impresion';
+import {htmlEscape as e,renderDeliveryPaper,deliverySkuCodes} from './delivery-print.mjs?v=20261029-formato';
 const $=s=>document.querySelector(s),day=v=>new Intl.DateTimeFormat('es-HN',{dateStyle:'short',timeZone:'America/Tegucigalpa'}).format(new Date(v));
 export function createDeliveryUI({rpc,getUserId,notice,isReadOnly=()=>false}){
  let active=null,list=[],doc=null,editing=false,busy=false,printing=false;
