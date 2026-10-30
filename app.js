@@ -2,10 +2,10 @@ import {isReadOnlyProfile,mayCallRpc,mayUseView} from './readonly-profile.mjs?v=
 import {askDeliveryContinuation} from './continuation-dialog.mjs?v=20261026-si-no';
 import {availableMonths,monthOf,monthLabel,destinationOf,stateOf,dailyChart,motiveChart} from './dashboard-charts.mjs?v=20261023-botones';
 import {isOpenManagement,followupFor,openManagements} from './open-management.mjs?v=20261022-1';
-import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261021-consolidado';
+import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261030-total-cajas';
 import {trackingPresentation} from './tracking-flow.mjs?v=20261021-entrega';
 import {createDeliveryUI} from './delivery-ui.mjs?v=20261029-formato-v2';
-import {groupedProducts} from './product-lists.mjs?v=20261021-multisku-orden';
+import {groupedProducts} from './product-lists.mjs?v=20261030-total-cajas';
 import { managementActions } from './row-actions.mjs?v=20261023-roles';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
 import { money,number,localDay,hours,summarize,csvCell,filterRows } from './logic.mjs?v=20261021-estados';
@@ -139,7 +139,7 @@ $('#tracking-actions').onclick=e=>{const button=e.target.closest('button');if(!b
  }
  if(button.dataset.advance==='Anulada'){if(!comment)throw new Error('Escribe un comentario con el motivo de la anulación.');if(!confirm(`¿Anular la gestión ${r.gestion}? Esta gestión quedará cerrada.`))return;await rpc('dev_avanzar',{p_id:r.id,p_version:r.version,p_estado:'Anulada',p_gestor:manager,p_liquidadora:null,p_comentario:comment});await findManagement(r.gestion);await reload();notice('Gestión anulada.');}
 });};
-async function exportDashboard(button){await act(button,async()=>{if(!state.filtered.length)throw new Error('No hay devoluciones para exportar con los filtros actuales.');const original=button.textContent;button.textContent='Generando dashboard…';try{const {downloadDashboard}=await import('./dashboard-report.mjs?v=20261024-grafico-visible');const rows=structuredClone(state.filtered),catalogs=structuredClone(state.catalogs);const count=await downloadDashboard(rows,catalogs,{description:'Operación de bodega y logística de café'});notice(`Dashboard Excel generado: ${count} gestiones. Incluye gráficos, filtros y detalle de productos.`);}finally{button.textContent=original}})}
+async function exportDashboard(button){await act(button,async()=>{if(!state.filtered.length)throw new Error('No hay devoluciones para exportar con los filtros actuales.');const original=button.textContent;button.textContent='Generando dashboard…';try{const {downloadDashboard}=await import('./dashboard-report.mjs?v=20261030-total-cajas');const rows=structuredClone(state.filtered),catalogs=structuredClone(state.catalogs);const count=await downloadDashboard(rows,catalogs,{description:'Operación de bodega y logística de café'});notice(`Dashboard Excel generado: ${count} gestiones. Incluye gráficos, filtros y detalle de productos.`);}finally{button.textContent=original}})}
 $('#export').onclick=()=>exportDashboard($('#export'));
 function downloadCSV(rows,name){const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 $('#template').onclick=()=>downloadCSV([FIELDS],'plantilla-devoluciones.csv');
