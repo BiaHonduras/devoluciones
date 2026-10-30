@@ -1,4 +1,4 @@
-import {groupedProducts,orderedProducts} from './product-lists.mjs';
+import {groupedProducts,orderedProducts} from './product-lists.mjs?v=20261030-total-cajas';
 import {hours,localDay} from './logic.mjs';
 export const CONSOLIDATED_HEADERS=['IDGestion','FechaRegistro','Sede','GestorN1','GestorN2','GestorN4','Liquidadora','NumeroFactura','NombreCliente','Código','Descripcion','Cantidad','Observación','BodegaOrigen','BodegaDestino','Estado','FechaEntregaLiquidadora','FechaNotaDebito','FechaIngresoGP','TiempoN1N2','TiempoN2N3','TiempoN3N4','TiempoTotal','ResponsableActual','Comentarios','ConteoSKUs','CostoSKU','CostoTotal','DIA','Cajas / Fardos','Mes'];
 export function consolidatedRow(r,{name=id=>id??'',site=v=>v,date=v=>v||'',duration=(a,b)=>hours(a,b)??''}={}){
