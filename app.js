@@ -4,7 +4,7 @@ import {availableMonths,monthOf,monthLabel,destinationOf,stateOf,dailyChart,moti
 import {isOpenManagement,followupFor,openManagements} from './open-management.mjs?v=20261022-1';
 import {CONSOLIDATED_HEADERS,consolidatedRow,elapsedHHMM,accountingL} from './consolidated.mjs?v=20261030-formatos';
 import {trackingPresentation} from './tracking-flow.mjs?v=20261021-entrega';
-import {createDeliveryUI} from './delivery-ui.mjs?v=20261029-formato-v2';
+import {createDeliveryUI} from './delivery-ui.mjs?v=20261030-acumulado-diario';
 import {groupedProducts} from './product-lists.mjs?v=20261030-total-cajas';
 import { managementActions } from './row-actions.mjs?v=20261023-roles';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
