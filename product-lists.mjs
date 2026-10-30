@@ -9,5 +9,6 @@ export function orderedProducts(items=[]){return items.map((item,index)=>({item,
  }).map(x=>x.item);}
 
 export function boxesForProduct(item){return item.datos_originales?.producto?.cajas_fardos??item.datos_originales?.['Cajas/Fardos']??'';}
+export function totalBoxes(items=[]){const values=items.map(boxesForProduct);if(values.some(v=>v===null||v===undefined||String(v).trim()===''||!Number.isFinite(Number(v))||Number(v)<0))return '';return values.reduce((sum,v)=>sum+Number(v),0);}
 export function joinProducts(values){return values.map(v=>{const s=String(v??'').trim()||'—';return /[,"\n\r]/.test(s)?'"'+s.replaceAll('"','""')+'"':s;}).join(', ');}
-export function groupedProducts(items=[]){const ordered=orderedProducts(items),get=key=>joinProducts(ordered.map(i=>i[key]));return {codigo:get('codigo'),descripcion:get('descripcion'),cantidad:joinProducts(ordered.map(i=>Number(i.cantidad))),costo_unitario:joinProducts(ordered.map(i=>Number(i.costo_unitario))),costo_total:joinProducts(ordered.map(i=>Number(i.costo_total))),cajas_fardos:joinProducts(ordered.map(boxesForProduct))};}
+export function groupedProducts(items=[]){const ordered=orderedProducts(items),get=key=>joinProducts(ordered.map(i=>i[key]));return {codigo:get('codigo'),descripcion:get('descripcion'),cantidad:joinProducts(ordered.map(i=>Number(i.cantidad))),costo_unitario:joinProducts(ordered.map(i=>Number(i.costo_unitario))),costo_total:joinProducts(ordered.map(i=>Number(i.costo_total))),cajas_fardos:totalBoxes(ordered)};}
