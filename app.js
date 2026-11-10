@@ -136,7 +136,7 @@ $('#tracking-actions').onclick=e=>{const button=e.target.closest('button');if(!b
  }
  if(button.dataset.advance==='Anulada'){if(!comment)throw new Error('Escribe un comentario con el motivo de la anulación.');if(!confirm(`¿Anular la gestión ${r.gestion}? Esta gestión quedará cerrada.`))return;await rpc('dev_avanzar',{p_id:r.id,p_version:r.version,p_estado:'Anulada',p_gestor:manager,p_liquidadora:null,p_comentario:comment});await findManagement(r.gestion);await reload();notice('Gestión anulada.');}
 });};
-async function exportDashboard(button){await act(button,async()=>{if(!state.filtered.length)throw new Error('No hay devoluciones para exportar con los filtros actuales.');const original=button.textContent;button.textContent='Generando dashboard…';try{const {downloadDashboard}=await import('./dashboard-report.mjs?v=20261110-idcliente-20261110-fecha-factura-20261030-total-cajas');const rows=structuredClone(state.filtered),catalogs=structuredClone(state.catalogs);const count=await downloadDashboard(rows,catalogs,{description:'Operación de bodega y logística de café'});notice(`Dashboard Excel generado: ${count} gestiones. Incluye gráficos, filtros y detalle de productos.`);}finally{button.textContent=original}})}
+async function exportDashboard(button){await act(button,async()=>{if(!state.filtered.length)throw new Error('No hay devoluciones para exportar con los filtros actuales.');const original=button.textContent;button.textContent='Generando dashboard…';try{const {downloadDashboard}=await import('./dashboard-report.mjs?v=20261110-catalogo-completo-20261110-fecha-factura-20261030-total-cajas');const rows=structuredClone(state.filtered),catalogs=structuredClone(state.catalogs);const count=await downloadDashboard(rows,catalogs,{description:'Operación de bodega y logística de café'});notice(`Dashboard Excel generado: ${count} gestiones. Incluye gráficos, filtros y detalle de productos.`);}finally{button.textContent=original}})}
 $('#export').onclick=()=>exportDashboard($('#export'));
 function downloadCSV(rows,name){const blob=new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 $('#template').onclick=()=>downloadCSV([FIELDS],'plantilla-devoluciones.csv');
@@ -163,9 +163,58 @@ $('#validate-import').onclick=()=>act($('#validate-import'),async()=>{
 $('#save-import').onclick=()=>act($('#save-import'),async()=>{if(!pendingImport)throw new Error('Valida los datos primero.');const rows=pendingImport,revision=importRevision;if(!confirm(`¿Importar ${new Set(rows.map(r=>r.gestion)).size} gestiones y ${rows.length} líneas del histórico?`))return;const result=await rpc('dev_importar_historico',{p_filas:rows});pendingImport=null;if(revision===importRevision){$('#import-paste').value='';$('#import-file').value='';$('#import-preview').hidden=true;}$('#import-result').textContent=`Importación guardada: ${result.gestiones} gestiones y ${result.lineas} productos.`;await reload();}).then(()=>{$('#save-import').disabled=!pendingImport});
 $('#user-form').onsubmit=e=>{e.preventDefault();act(e.submitter,async()=>{$('#user-password-result').hidden=true;$('#user-initial-password').textContent='';const body=Object.fromEntries(new FormData(e.target));const {data,error}=await supabase.functions.invoke('admin-users',{body:{...body,action:'create_or_assign',rol:body.rol||'operador',puede_cierre_dia:false}});if(error){let message=error.message;try{const payload=await error.context.json();message=payload.message||payload.error||message}catch{}throw new Error(message)}if(!data?.ok)throw new Error(data?.error||'No se pudo crear el usuario.');e.target.reset();await showApp(currentUser);setView('usuarios');notice(data.created?'Usuario creado. Debe cambiar la contraseña temporal al ingresar.':'La cuenta ya existía. Se asignó su acceso sin cambiar su contraseña.');if(data.initial_password){$('#user-initial-password').textContent=data.initial_password;$('#user-password-result').hidden=false}});};
 let catalogType=null;
-$$('[data-add-catalog]').forEach(button=>button.onclick=()=>{catalogType=button.dataset.addCatalog;$('#catalog-title').textContent=catalogType==='cliente'?'Agregar Cliente':'Agregar Comentario';$('#catalog-help').textContent=catalogType==='cliente'?'El cliente quedará disponible para próximas devoluciones.':'El comentario quedará disponible como opción en Observación.';$('#catalog-form').reset();$('#catalog-message').textContent='';$('#catalog-dialog').showModal();$('#catalog-name').focus();});
+function syncClientPreview(){
+ if(catalogType!=='cliente')return;
+ const id=$('#catalog-client-id').value.trim(),name=$('#catalog-client-name').value.trim();
+ $('#catalog-name').value=id&&name?id+' - '+name:'';
+ $('#catalog-delete').disabled=!(state.isAdmin||state.isMaster)||!state.catalogs.negocio_ids?.some(c=>c.idcliente===id);
+}
+function fillCatalogClient(){
+ const id=$('#catalog-client-id').value.trim(),client=state.catalogs.negocio_ids?.find(c=>c.idcliente===id);
+ if(client)$('#catalog-client-name').value=client.nombcliente||'';
+ syncClientPreview();
+}
+async function refreshCustomerCatalog(selected=''){
+ const catalogs=await rpc('dev_catalogos');state.catalogs.negocio=catalogs.negocio||[];state.catalogs.negocio_ids=catalogs.negocio_ids||[];state.catalogs.negocio_legacy_ids=catalogs.negocio_legacy_ids||[];
+ $('#clientes').innerHTML=state.catalogs.negocio.map(n=>`<option value="${escape(n)}"></option>`).join('');
+ if(selected)$('#entry-form [name=cliente]').value=selected;
+}
+$$('[data-add-catalog]').forEach(button=>button.onclick=()=>{
+ catalogType=button.dataset.addCatalog;const client=catalogType==='cliente';
+ $('#catalog-title').textContent=client?'Agregar Cliente':'Agregar Comentario';
+ $('#catalog-help').textContent=client?'Ingresa el ID y nombre. Para eliminar un cliente existente, escribe su ID.':'El comentario quedará disponible como opción en Observación.';
+ $('#catalog-form').reset();$('#catalog-client-fields').hidden=!client;$('#catalog-client-id').required=client;$('#catalog-client-name').required=client;
+ $('#catalog-name').readOnly=client;$('#catalog-name-label').firstChild.textContent=client?'Nombre del Cliente':'Nombre';
+ $('#catalog-delete').hidden=!client;$('#catalog-message').textContent='';
+ if(client){const selected=state.catalogs.negocio_ids?.find(c=>c.nombre===$('#entry-form [name=cliente]').value);if(selected){$('#catalog-client-id').value=selected.idcliente;fillCatalogClient()}syncClientPreview()}
+ $('#catalog-dialog').showModal();$(client?'#catalog-client-id':'#catalog-name').focus();
+});
+$('#catalog-client-id').addEventListener('input',()=>{fillCatalogClient()});
+$('#catalog-client-name').addEventListener('input',syncClientPreview);
 $('#catalog-cancel').onclick=()=>$('#catalog-dialog').close();
-$('#catalog-form').onsubmit=async e=>{e.preventDefault();if(state.busy)return;const button=e.submitter;state.busy=true;button.disabled=true;$('#catalog-cancel').disabled=true;$('#catalog-message').textContent='Guardando…';try{const value=await rpc('dev_agregar_catalogo',{p_tipo:catalogType,p_nombre:$('#catalog-name').value});const list=catalogType==='cliente'?state.catalogs.negocio:state.catalogs.observaciones;if(!list.includes(value))list.push(value);list.sort((a,b)=>a.localeCompare(b,'es'));if(catalogType==='cliente'){$('#clientes').innerHTML=list.map(n=>`<option value="${escape(n)}"></option>`).join('');$('#entry-form [name=cliente]').value=value;}else{options($('#entry-form [name=observacion]'),list);$('#entry-form [name=observacion]').value=value;}$('#catalog-dialog').close();notice(`${catalogType==='cliente'?'Cliente':'Comentario'} disponible: ${value}`);}catch(err){$('#catalog-message').textContent=err.message||'No se pudo guardar. Intenta nuevamente.';}finally{state.busy=false;button.disabled=false;$('#catalog-cancel').disabled=false;}};
+async function catalogWork(button,work){
+ if(state.busy)return;state.busy=true;button.disabled=true;$('#catalog-cancel').disabled=true;$('#catalog-message').textContent='Procesando…';
+ try{await work()}catch(err){$('#catalog-message').textContent=err.message||'No se pudo completar la operación.'}
+ finally{state.busy=false;button.disabled=false;$('#catalog-cancel').disabled=false;syncClientPreview()}
+}
+$('#catalog-form').onsubmit=async e=>{
+ e.preventDefault();await catalogWork(e.submitter,async()=>{
+ if(catalogType==='cliente'){
+ const value=await rpc('dev_guardar_cliente',{p_idcliente:$('#catalog-client-id').value.trim(),p_nombcliente:$('#catalog-client-name').value.trim()});
+ await refreshCustomerCatalog(value);$('#catalog-dialog').close();notice('Cliente disponible: '+value);return;
+ }
+ const value=await rpc('dev_agregar_catalogo',{p_tipo:catalogType,p_nombre:$('#catalog-name').value});
+ const list=state.catalogs.observaciones;if(!list.includes(value))list.push(value);list.sort((a,b)=>a.localeCompare(b,'es'));
+ options($('#entry-form [name=observacion]'),list);$('#entry-form [name=observacion]').value=value;
+ $('#catalog-dialog').close();notice('Comentario disponible: '+value);
+ });
+};
+$('#catalog-delete').onclick=async()=>{
+ if(!(state.isAdmin||state.isMaster))return;
+ const id=$('#catalog-client-id').value.trim();
+ if(!confirm('¿Eliminar el cliente '+id+' del catálogo?'))return;
+ await catalogWork($('#catalog-delete'),async()=>{const value=await rpc('dev_eliminar_cliente',{p_idcliente:id});if($('#entry-form [name=cliente]').value===value)$('#entry-form [name=cliente]').value='';await refreshCustomerCatalog();$('#catalog-dialog').close();notice('Cliente eliminado: '+value)});
+};
 $('#catalog-dialog').addEventListener('cancel',e=>{if(state.busy)e.preventDefault()});
 try{const {data,error}=await supabase.auth.getUser();if(data?.user&&!error)await showApp(data.user)}catch(e){$('#login-message').textContent=e.message}
 

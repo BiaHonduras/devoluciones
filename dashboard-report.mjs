@@ -5,7 +5,7 @@ import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=2026103
 export const EXPORT_ORDER=[0,31,1,13,14,29,...Array.from({length:31},(_,i)=>i).filter(i=>![0,1,13,14,29].includes(i))];
 EXPORT_ORDER.splice(EXPORT_ORDER.indexOf(8),0,32);
 export const EXPORT_HEADERS=EXPORT_ORDER.map(i=>i===32?'IDCliente':i===31?'FechaFactura':CONSOLIDATED_HEADERS[i]);
-export function clientIdLookup(catalogs={}){const ids=new Map();for(const c of catalogs.negocio_ids||[]){const key=String(c.nombre??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');const id=String(c.idcliente??'');if(!key||!id)continue;if(ids.has(key)&&ids.get(key)!==id)ids.set(key,'');else if(!ids.has(key))ids.set(key,id)}return name=>ids.get(String(name??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es'))||''}
+export function clientIdLookup(catalogs={}){const ids=new Map();for(const c of [...(catalogs.negocio_legacy_ids||[]),...(catalogs.negocio_ids||[])]){const key=String(c.nombre??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');const id=String(c.idcliente??'');if(!key||!id)continue;if(ids.has(key)&&ids.get(key)!==id)ids.set(key,'');else if(!ids.has(key))ids.set(key,id)}return name=>ids.get(String(name??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es'))||''}
 const DAY=86400000,OFFSET=25569-6/24;
 const xml=v=>String(v??'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const unxml=v=>v.replace(/&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
