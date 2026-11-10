@@ -50,3 +50,7 @@ Verificado: 34 pruebas automatizadas, apertura del Excel con openpyxl y navegado
 El Dashboard incluye Gestiones abiertas con conteo por estado, próximo paso, responsable actual y fecha/horas en la etapa vigente. Lista primero las más antiguas, con paginación de diez gestiones y acceso directo al seguimiento. Abiertas: Ingresada, Enviado a Liquidación y Nota de Débito Entregada. Finalizada, Anulada y eliminadas quedan excluidas.
 
 El filtro Solo pendientes de seguimiento se combina con sede, fechas, gestor, estado y búsqueda existentes. Ver todas en el consolidado activa ese filtro. El consolidado conserva las 31 columnas, utiliza ámbar suave en las filas pendientes y agrega una indicación textual debajo del ID de la gestión. No cambia estados ni fechas de los registros. El enlace Intranet BIA Honduras regresa al portal corporativo conservando la sesión.
+
+## Fecha Factura · 10 de noviembre de 2026
+
+Ingresos solicita Fecha Factura manual obligatoria; fecha_registro sigue automática en la base y se oculta en el formulario. La hoja Consolidado del Dashboard Excel agrega FechaFactura después de IDGestion como fecha Excel sin hora. Los registros anteriores quedan sin fecha de factura hasta contar con el dato real. La plantilla de importación histórica conserva su formato. Migración: database/fecha_factura.sql. Cambio de negocio a IDCliente/NombCliente pendiente del documento actualizado del usuario.
