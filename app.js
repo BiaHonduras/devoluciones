@@ -4,7 +4,7 @@ import {availableMonths,monthOf,monthLabel,destinationOf,stateOf,dailyChart,moti
 import {isOpenManagement,followupFor,openManagements} from './open-management.mjs?v=20261022-1';
 import {CONSOLIDATED_HEADERS,consolidatedRow,elapsedHHMM,accountingL} from './consolidated.mjs?v=20261030-formatos';
 import {trackingPresentation} from './tracking-flow.mjs?v=20261021-entrega';
-import {createDeliveryUI} from './delivery-ui.mjs?v=20261030-acumulado-diario';
+import {createDeliveryUI} from './delivery-ui.mjs?v=20261110-cliente-dashboard';
 import {groupedProducts} from './product-lists.mjs?v=20261030-total-cajas';
 import { managementActions } from './row-actions.mjs?v=20261023-roles';
 import { supabase, iniciarSesion } from 'https://biahonduras.github.io/control-tiempos/supabase-config.js';
@@ -19,7 +19,7 @@ let names={},sedeNames={},currentUser=null;
 const notice=(message,error=false)=>{const n=$('#notice');n.textContent=message;n.classList.toggle('error',error);n.hidden=!message};
 async function rpc(name,args={}){if(!mayCallRpc(name,state.readOnly))throw new Error('El perfil Liquidadora solo permite consultar Devoluciones.');const {data,error}=await supabase.rpc(name,args);if(error)throw new Error(error.message);return data}
 async function act(button,work){if(state.busy)return;state.busy=true;if(button)button.disabled=true;try{await work()}catch(e){notice(e.message||'No se pudo completar la operación. Intenta nuevamente.',true)}finally{state.busy=false;if(button)button.disabled=false}}
-const deliveries=createDeliveryUI({rpc,getUserId:()=>currentUser?.id,notice,isReadOnly:()=>state.readOnly===true});
+const deliveries=createDeliveryUI({rpc,getUserId:()=>currentUser?.id,notice,isReadOnly:()=>state.readOnly===true,getClients:()=>state.catalogs?.negocio_ids||[]});
 function options(el,values,placeholder='Selecciona una opción'){el.innerHTML=`<option value="">${escape(placeholder)}</option>`+values.map(v=>typeof v==='string'?`<option value="${escape(v)}">${escape(v)}</option>`:`<option value="${escape(v.value)}">${escape(v.label)}</option>`).join('')}
 function managerOptions(shortOnly=false){return state.catalogs.usuarios.map(u=>({value:u.id,label:shortOnly?(u.nombre_corto?.trim()||'Sin nombre corto'):[u.nombre_corto||u.usuario,u.correo].filter(Boolean).join(' · ')}))}
 function setView(view){if(!['dashboard','ingreso','seguimiento','detalle','usuarios','transferencia'].includes(view))view='dashboard';if(!mayUseView(view,state.readOnly))view='dashboard';if(view==='usuarios'){location.assign('https://biahonduras.github.io/control-tiempos/intranet.html#usuarios');return}state.view=view;if(view==='usuarios')refreshSharedUsers().catch(err=>notice(err.message,true));$$('[data-panel]').forEach(e=>e.hidden=e.dataset.panel!==view);$$('[data-view]').forEach(e=>e.classList.toggle('active',e.dataset.view===view));$('#global-filters').hidden=!['dashboard','detalle'].includes(view);$('#page-title').textContent={dashboard:'Dashboard de Devoluciones',ingreso:'Ingresos',seguimiento:'Seguimientos',detalle:'Consolidado',usuarios:'Usuarios',transferencia:'Importar | Exportar'}[view];if(location.hash!==`#${view}`)history.replaceState(null,'',`#${view}`)}
@@ -121,20 +121,20 @@ $('#tracking-actions').onclick=e=>{const button=e.target.closest('button');if(!b
  if(button.hasAttribute('data-take-n2')){
   const liquidator=$('#tracking-liquidator').value;if(!liquidator)throw new Error('Selecciona una liquidadora.');
   const result=await deliveries.take(r,manager,liquidator,comment);await findManagement(r.gestion);await reload();
-  if(result.ya_existia){notice('La gestión ya tiene un control de entrega.');await deliveries.forManagement(state.tracking);return;}
+  if(result.ya_existia){notice('La gestión ya tiene un control de entrega.');await deliveries.forManagement(state.tracking);setView('dashboard');return;}
   const continuar=await askDeliveryContinuation($('#delivery-continue-dialog'));
   if(continuar===true){clearTracking();notice('Gestión N2 guardada. Busca el siguiente registro; el control se conserva pendiente.');}
   else if(continuar===false)await deliveries.finish();
   else notice('Gestión N2 guardada. El control de entrega queda pendiente.');
-  return;
+  setView('dashboard');return;
  }
  if(button.hasAttribute('data-n3-n4')){
   if(r.estado==='Enviado a Liquidacion'&&!confirm('¿Se entregaron las Notas de Débito?'))return;
   const next=r.estado==='Enviado a Liquidacion'?'Nota de Débito Entregada':r.estado==='Nota de Débito Entregada'?'Finalizada':null;if(!next)throw new Error('Esta gestión no permite avanzar. Busca nuevamente.');
   await rpc('dev_avanzar',{p_id:r.id,p_version:r.version,p_estado:next,p_gestor:manager,p_liquidadora:null,p_comentario:comment});await findManagement(r.gestion);await reload();
-  if(next==='Finalizada'){notice('Gestión Finalizada. Producto devuelto a Bodega Destino');alert('Gestión Finalizada. Producto devuelto a Bodega Destino');}else notice('Nota de Débito Entregada.');return;
+  if(next==='Finalizada'){notice('Gestión Finalizada. Producto devuelto a Bodega Destino');alert('Gestión Finalizada. Producto devuelto a Bodega Destino');}else notice('Nota de Débito Entregada.');setView('dashboard');return;
  }
- if(button.dataset.advance==='Anulada'){if(!comment)throw new Error('Escribe un comentario con el motivo de la anulación.');if(!confirm(`¿Anular la gestión ${r.gestion}? Esta gestión quedará cerrada.`))return;await rpc('dev_avanzar',{p_id:r.id,p_version:r.version,p_estado:'Anulada',p_gestor:manager,p_liquidadora:null,p_comentario:comment});await findManagement(r.gestion);await reload();notice('Gestión anulada.');}
+ if(button.dataset.advance==='Anulada'){if(!comment)throw new Error('Escribe un comentario con el motivo de la anulación.');if(!confirm(`¿Anular la gestión ${r.gestion}? Esta gestión quedará cerrada.`))return;await rpc('dev_avanzar',{p_id:r.id,p_version:r.version,p_estado:'Anulada',p_gestor:manager,p_liquidadora:null,p_comentario:comment});await findManagement(r.gestion);await reload();notice('Gestión anulada.');setView('dashboard');}
 });};
 async function exportDashboard(button){await act(button,async()=>{if(!state.filtered.length)throw new Error('No hay devoluciones para exportar con los filtros actuales.');const original=button.textContent;button.textContent='Generando dashboard…';try{const {downloadDashboard}=await import('./dashboard-report.mjs?v=20261110-catalogo-completo-20261110-fecha-factura-20261030-total-cajas');const rows=structuredClone(state.filtered),catalogs=structuredClone(state.catalogs);const count=await downloadDashboard(rows,catalogs,{description:'Operación de bodega y logística de café'});notice(`Dashboard Excel generado: ${count} gestiones. Incluye gráficos, filtros y detalle de productos.`);}finally{button.textContent=original}})}
 $('#export').onclick=()=>exportDashboard($('#export'));
