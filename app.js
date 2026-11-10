@@ -74,7 +74,7 @@ $('#edit-dialog').addEventListener('cancel',e=>{if(state.busy)e.preventDefault()
 $('#edit-form').onsubmit=async e=>{
  e.preventDefault();if(state.busy||!editingReturn)return;const row=editingReturn,button=e.submitter;state.busy=true;button.disabled=true;$('#edit-close').disabled=true;$('#edit-cancel').disabled=true;$('#edit-message').textContent='Guardando…';
  try{
-  const data=Object.fromEntries(new FormData(e.target));if(!state.catalogs.negocio.includes(data.cliente))throw new Error('Selecciona un cliente del catálogo.');
+  const data=Object.fromEntries(new FormData(e.target));if(data.cliente!==row.cliente&&!state.catalogs.negocio.includes(data.cliente))throw new Error('Selecciona un cliente del catálogo.');
   const items=$$('[data-edit-quantity]').map(input=>({id:input.dataset.editQuantity,cantidad:input.value}));
   await rpc('dev_editar',{p_id:row.id,p_version:row.version,p_datos:data,p_items:items});
   $('#edit-dialog').close();editingReturn=null;await reload();if(state.tracking?.id===row.id)await findManagement(row.gestion);notice(`Gestión ${row.gestion} actualizada.`);
