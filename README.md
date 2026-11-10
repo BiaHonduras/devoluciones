@@ -54,3 +54,8 @@ El filtro Solo pendientes de seguimiento se combina con sede, fechas, gestor, es
 ## Fecha Factura · 10 de noviembre de 2026
 
 Ingresos solicita Fecha Factura manual obligatoria; fecha_registro sigue automática en la base y se oculta en el formulario. La hoja Consolidado del Dashboard Excel agrega FechaFactura después de IDGestion como fecha Excel sin hora. Los registros anteriores quedan sin fecha de factura hasta contar con el dato real. La plantilla de importación histórica conserva su formato. Migración: database/fecha_factura.sql. Cambio de negocio a IDCliente/NombCliente pendiente del documento actualizado del usuario.
+
+## IDCliente en Dashboard Excel · 10 de noviembre de 2026
+
+Consolidado agrega IDCliente antes de NombreCliente. El identificador se obtiene del catálogo negocio por nombre, normalizando mayúsculas y espacios; se conserva como texto. El archivo negocio.xlsx proporcionado se usó para completar únicamente nombres con un solo ID: 70 clientes del catálogo, 136 gestiones actuales. Quedan 24 nombres ambiguos y 53 sin coincidencia. No se incorporan los datos del adjunto al repositorio público. Migración database/idcliente_exportacion.sql aplicada; dev_catalogos conserva sus permisos e incorpora negocio_ids. La columna nombre se mantiene para compatibilidad con las funciones existentes; su cambio a NombCliente sigue pendiente.
+
