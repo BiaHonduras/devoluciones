@@ -107,6 +107,59 @@ $$('#global-filters input,#global-filters select').forEach(i=>i.addEventListener
 $$('#daily-filters select').forEach(el=>el.addEventListener('change',()=>{state.dailyMonth=$('#daily-month').value;renderDailyChart()}));
 $('#daily-clear').onclick=()=>{state.dailyMonth='';$$('#daily-filters select').forEach(el=>el.value='');renderDailyChart()};
 $('#clear-filters').onclick=()=>{state.dailyMonth='';$$('#daily-filters select').forEach(el=>el.value='');$$('#global-filters input,#global-filters select').forEach(i=>{if(i.type==='checkbox')i.checked=false;else i.value=''});notice('');applyFilters()};
+
+const addCodeButton=$('#add-code');
+if(addCodeButton){
+ const dialog=$('#code-dialog');
+ const form=$('#code-form');
+ const message=$('#code-message');
+ const canAddCode=()=>!state.readOnly&&!addCodeButton.disabled;
+ addCodeButton.onclick=()=>{
+  if(state.busy||!canAddCode())return;
+  form.reset();
+  form.elements.codigo.value=$('#code').value.trim();
+  message.textContent='';
+  dialog.showModal();
+  (form.elements.codigo.value?form.elements.descripcion:form.elements.codigo).focus();
+ };
+ $('#code-cancel').onclick=()=>{if(!state.busy)dialog.close()};
+ dialog.addEventListener('cancel',e=>{if(state.busy)e.preventDefault()});
+ form.onsubmit=e=>{
+  e.preventDefault();
+  if(!canAddCode()||state.busy)return;
+  message.textContent='';
+  const fields=Object.fromEntries([...new FormData(form)].map(([name,value])=>[name,value.trim()]));
+  if(!fields.codigo||!fields.descripcion||!fields.proveedor||!fields.masterpack||!fields.costo){
+   message.textContent='Completa todos los campos obligatorios.';
+   return;
+  }
+  const masterpack=Number(fields.masterpack);
+  const costo=Number(fields.costo);
+  if(!Number.isFinite(masterpack)||masterpack<=0||!Number.isFinite(costo)||costo<0){
+   message.textContent='Ingresa un Masterpack mayor que cero y un costo unitario válido.';
+   return;
+  }
+  act(e.submitter,async()=>{
+   const {error}=await supabase.from('codigos').insert({
+    ...fields,masterpack,costo,codigo_barra:fields.codigo_barra||null,
+   });
+   if(error){
+    message.textContent=error.code==='23505'?'Este código ya existe en el catálogo.':error.message;
+    return;
+   }
+   dialog.close();
+   $('#code').value=fields.codigo;
+   try{
+    await lookup();
+    notice('Código guardado: '+fields.codigo);
+    $('#quantity').focus();
+   }catch(error){
+    notice('Código guardado: '+fields.codigo+'. La consulta falló: '+error.message,true);
+   }
+  });
+ };
+}
+
 $('#lookup').onclick=()=>act($('#lookup'),lookup);$('#code').addEventListener('input',()=>{state.product=null;$('#add-item').disabled=true});$('#code').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();act($('#lookup'),lookup)}});
 $('#add-item').onclick=()=>{const q=Number($('#quantity').value);if(!state.product||state.product.codigo!==$('#code').value.trim())return notice('Consulta el código nuevamente.',true);if(!Number.isFinite(q)||q<=0||!$('#quantity').checkValidity())return notice('Ingresa una cantidad mayor que cero con hasta 4 decimales.',true);if(state.items.some(i=>i.codigo===state.product.codigo))return notice('El código ya está agregado. Quítalo para cambiar la cantidad.',true);state.items.push({...state.product,cantidad:q});renderItems();notice('');$('#code').value='';state.product=null;$('#add-item').disabled=true;$('#product-info').textContent='Consulta otro código para agregarlo.';$('#quantity').value='1';$('#code').focus()};
 $('#items').onclick=e=>{const b=e.target.closest('[data-remove]');if(b){state.items.splice(Number(b.dataset.remove),1);renderItems()}};
