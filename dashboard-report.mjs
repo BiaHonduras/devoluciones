@@ -2,9 +2,34 @@ import {dailyReportModel,dailyRecordValues,fillDailyCells,chartLabels,dailyChart
 import {CONSOLIDATED_HEADERS,consolidatedRow} from './consolidated.mjs?v=20261030-total-cajas';
 // Browser export fills the styled, native-chart XLSX template in reports/.
 // The template is authored with @oai/artifact-tool; JSZip only packages it.
-export const EXPORT_ORDER=[0,31,1,13,14,29,...Array.from({length:31},(_,i)=>i).filter(i=>![0,1,13,14,29].includes(i))];
+export const EXPORT_ORDER=[0,31,1,13,14,29,...Array.from({length:31},(_,i)=>i).filter(i=>![0,1,13,14,29].includes(i)),33];
 EXPORT_ORDER.splice(EXPORT_ORDER.indexOf(8),0,32);
-export const EXPORT_HEADERS=EXPORT_ORDER.map(i=>i===32?'IDCliente':i===31?'FechaFactura':CONSOLIDATED_HEADERS[i]);
+export const EXPORT_HEADERS=EXPORT_ORDER.map(i=>i===33?'Tipo Ruta':i===32?'IDCliente':i===31?'FechaFactura':CONSOLIDATED_HEADERS[i]);
+const PREVENTA_ROUTES=new Set(['501','561','564']);
+export const isPreventaRoute=origin=>PREVENTA_ROUTES.has(String(origin??'').trim());
+const productCode=item=>String(item.codigo??'').trim();
+
+export async function loadPreventaMasterpacks(rows,fetchProducts){
+ const codes=[...new Set(rows.filter(r=>isPreventaRoute(r.bodega_origen))
+  .flatMap(r=>(r.devoluciones_detalle||[]).map(productCode)).filter(Boolean))];
+ const masterpacks=new Map();
+ for(let i=0;i<codes.length;i+=100){
+  const products=await fetchProducts(codes.slice(i,i+100));
+  for(const product of products)masterpacks.set(productCode(product),Number(product.masterpack));
+ }
+ return masterpacks;
+}
+
+function preventaBoxes(items,masterpacks){
+ let total=0;
+ for(const item of items){
+  const pack=masterpacks?.get(productCode(item));
+  if(!Number.isFinite(pack)||pack<=0)return null;
+  total+=item.quantity/pack;
+ }
+ return total;
+}
+
 export function clientIdLookup(catalogs={}){const ids=new Map();for(const c of [...(catalogs.negocio_legacy_ids||[]),...(catalogs.negocio_ids||[])]){const key=String(c.nombre??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es');const id=String(c.idcliente??'');if(!key||!id)continue;if(ids.has(key)&&ids.get(key)!==id)ids.set(key,'');else if(!ids.has(key))ids.set(key,id)}return name=>ids.get(String(name??'').trim().replace(/\s+/g,' ').toLocaleLowerCase('es'))||''}
 const DAY=86400000,OFFSET=25569-6/24;
 const xml=v=>String(v??'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -43,6 +68,28 @@ export function buildReportModel(input,catalogs={},scope={}){
 }
 
 function rowStyles(xmlText,row){const body=xmlText.match(new RegExp(`<x:row\\b[^>]*\\br="${row}"[^>]*>([\\s\\S]*?)<\\/x:row>`))?.[1]||'';const map={};for(const match of body.matchAll(/<x:c\b([^>]*?)(?:\/>|>[\s\S]*?<\/x:c>)/g)){const ref=match[1].match(/\br="([A-Z]+)\d+"/)?.[1],style=match[1].match(/\bs="(\d+)"/)?.[1];if(ref)map[ref]=style||'0'}return map}
+async function addOneDecimalStyle(zip,baseStyle){
+ const styles=await zip.file('xl/styles.xml').async('string');
+ const formats=[...styles.matchAll(/<x:numFmt\b[^>]*numFmtId="(\d+)"/g)].map(m=>Number(m[1]));
+ const id=Math.max(163,...formats)+1;
+ const format=`<x:numFmt numFmtId="${id}" formatCode="0.0"/>`;
+ const withFormat=styles.replace(/<x:numFmts\b[^>]*(?:\/>|>[\s\S]*?<\/x:numFmts>)/,group=>
+  group.endsWith('/>')?`<x:numFmts count="1">${format}</x:numFmts>`:
+  group.replace(/count="(\d+)"/,(_,count)=>`count="${Number(count)+1}"`).replace('</x:numFmts>',format+'</x:numFmts>'));
+ let styleIndex;
+ const updated=(withFormat===styles?styles.replace(/(<x:styleSheet\b[^>]*>)/,`$1<x:numFmts count="1">${format}</x:numFmts>`):withFormat)
+  .replace(/<x:cellXfs count="(\d+)">([\s\S]*?)<\/x:cellXfs>/,(_,count,body)=>{
+   styleIndex=count;
+   const base=[...body.matchAll(/<x:xf\b[^>]*?(?:\/>|>[\s\S]*?<\/x:xf>)/g)][Number(baseStyle)][0];
+   const decimal=base.replace(/ numFmtId="\d+"| applyNumberFormat="[^"]*"/g,'')
+    .replace('<x:xf',`<x:xf numFmtId="${id}" applyNumberFormat="1"`);
+   return `<x:cellXfs count="${Number(count)+1}">${body}${decimal}</x:cellXfs>`;
+  });
+ if(styleIndex===undefined)throw new Error('La plantilla del Excel no contiene los estilos esperados.');
+ zip.file('xl/styles.xml',updated);
+ return styleIndex;
+}
+
 function writeCell(ref,value,style='0'){
  const attrs=`r="${ref}" s="${style}"`;
  if(value&&typeof value==='object'&&'formula'in value){const v=value.value;return `<x:c ${attrs}${typeof v==='string'?' t="str"':''}><x:f>${xml(value.formula.replace(/^=/,''))}</x:f>${v===null||v===undefined?'':`<x:v>${xml(v)}</x:v>`}</x:c>`}
@@ -78,17 +125,24 @@ export async function createDashboardXlsx({rows,catalogs,scope={},template,Zip=g
  const g=c=>`Resumen!$${helperCol(c)}$6:$${helperCol(c)}$${last}`,d=c=>`Consolidado!$${col(EXPORT_ORDER.indexOf(ci(c)))}$6:$${col(EXPORT_ORDER.indexOf(ci(c)))}$${detailLast}`;
  const helperFormula=formula=>formula.replace(/(?:[A-Za-z][A-Za-z0-9_]*!)?\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?/g,ref=>ref.includes('!')?ref:ref.replace(/(\$?)([A-Z]{1,3})(\$?\d+)/g,(_,abs,c,row)=>abs+helperCol(c)+row));
  const dataRows=[],detailRows=[],clientId=clientIdLookup(catalogs);
+ const routeDecimalRows=new Set();
  for(let i=0;i<model.records.length;i++){
   const r=model.records[i],n=i+6,[start,n2,n3,n4,finish]=r.times;
   const hoursFormula=(a,b)=>`IF(AND(ISNUMBER(${a}${n}),ISNUMBER(${b}${n})),MAX(0,(${b}${n}-${a}${n})*24),"")`;
   const flag=`IF(A${n}="",0,IF(AND(OR(Dashboard!$A$52="Todas",C${n}=Dashboard!$A$52),OR(Dashboard!$F$52="Todos",D${n}=Dashboard!$F$52),OR(Dashboard!$L$52="Todos",H${n}=Dashboard!$L$52),B${n}>=Dashboard!$R$52,B${n}<Dashboard!$V$52+1),1,0))`;
   dataRows.push([r.gestion,start,r.site,r.manager,r.cliente,String(r.factura??''),r.reason,r.estado,r.bodega_origen,r.bodega_destino,r.liquidadora||'',r.manager2,r.manager4,n2,n3,n4,finish,f(hoursFormula('B','N'),r.stages[0]),f(hoursFormula('N','O'),r.stages[1]),f(hoursFormula('O','P'),r.stages[2]),f(hoursFormula('B','P'),r.elapsed),f(`SUMIFS(${d('AB')},${d('A')},A${n})`,r.cost),f(`SUMIFS(${d('Z')},${d('A')},A${n})`,r.items.length),f(flag,1),f(`INT(B${n})`,r.day),r.comentario||'',r.gestor_n1===null?'':String(r.gestor_n1??''),f(`IF(AND(ISNUMBER(B${n}),ISNUMBER(P${n})),1,0)`,r.elapsed===null?0:1),f(`IF(X${n}=1,COUNTIFS($X$6:X${n},1),0)`,i+1)]);
   const responsible=r.estado==='Finalizada'?r.manager4:r.estado==='Enviado a Liquidacion'?r.liquidadora:r.estado==='Ingresada'?r.manager:(r.gestor_n4?r.manager4:r.gestor_n2?r.manager2:r.manager);
-  detailRows.push(consolidatedRow(r,{name:id=>id==null?'':r.gestor_n1===id?r.manager:r.gestor_n2===id?r.manager2:r.manager4,site:()=>r.site,date:excelDate}).concat(r.fecha_factura?excelDate(r.fecha_factura+'T00:00:00-06:00'):null,clientId(r.cliente)));
+  const detail=consolidatedRow(r,{name:id=>id==null?'':r.gestor_n1===id?r.manager:r.gestor_n2===id?r.manager2:r.manager4,site:()=>r.site,date:excelDate});
+  const isPreventa=isPreventaRoute(r.bodega_origen);
+  if(isPreventa){
+   detail[29]=preventaBoxes(r.items,catalogs?.preventaMasterpacks)??'Sin Masterpack';
+   if(typeof detail[29]==='number')routeDecimalRows.add(n);
+  }
+  detailRows.push(detail.concat(r.fecha_factura?excelDate(r.fecha_factura+'T00:00:00-06:00'):null,clientId(r.cliente),isPreventa?'Preventa':'Normal'));
  }
- let dataXML=await zip.file('xl/worksheets/sheet3.xml').async('string');let detailXML=await zip.file('xl/worksheets/sheet4.xml').async('string');const oldStyles=rowStyles(detailXML,6),mapping=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,20,21,22,23,24,25,26,27,29,26,9,9,1,7];detailXML=replaceData(detailXML,detailRows,6);detailXML=detailXML.replace(/<x:row r="(\d+)"[^>]*>[\s\S]*?<\/x:row>/g,(row,n)=>Number(n)<6?row:row.replace(/<x:c\b([^>]*?)>/g,(cell,attrs)=>{const c=attrs.match(/r="([A-Z]+)\d+"/)?.[1];if(!c)return cell;const index=[...c].reduce((v,ch)=>v*26+ch.charCodeAt(0)-64,0)-1;return cell.replace(/s="\d+"/,`s="${oldStyles[col(mapping[index])]||'0'}"`)}));// Move only exported columns; the website and import contract retain their original order.
+ let dataXML=await zip.file('xl/worksheets/sheet3.xml').async('string');let detailXML=await zip.file('xl/worksheets/sheet4.xml').async('string');const oldStyles=rowStyles(detailXML,6),mapping=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,20,21,22,23,24,25,26,27,29,26,9,9,1,7,9];const decimalStyle=routeDecimalRows.size?await addOneDecimalStyle(zip,oldStyles[col(mapping[29])]||'0'):null;detailXML=replaceData(detailXML,detailRows.length?detailRows:[Array(EXPORT_HEADERS.length).fill(null)],6);detailXML=detailXML.replace(/<x:row r="(\d+)"[^>]*>[\s\S]*?<\/x:row>/g,(row,n)=>Number(n)<6?row:row.replace(/<x:c\b([^>]*?)>/g,(cell,attrs)=>{const c=attrs.match(/r="([A-Z]+)\d+"/)?.[1];if(!c)return cell;const index=[...c].reduce((v,ch)=>v*26+ch.charCodeAt(0)-64,0)-1;return cell.replace(/s="\d+"/,`s="${index===29&&routeDecimalRows.has(Number(n))?decimalStyle:(oldStyles[col(mapping[index])]||'0')}"`)}));// Move only exported columns; the website and import contract retain their original order.
  detailXML=detailXML.replace(/<x:row r="(\d+)"[^>]*>[\s\S]*?<\/x:row>/g,(row,n)=>{if(Number(n)<6)return row;const cells=[...row.matchAll(/<x:c\b[^>]*?(?:\/>|>[\s\S]*?<\/x:c>)/g)].map(m=>m[0]);return `<x:row r="${n}" ht="23" customHeight="1">${EXPORT_ORDER.map((old,i)=>cells[old].replace(/r="[A-Z]+\d+"/,`r="${col(i)}${n}"`)).join('')}</x:row>`});
- const headerStyles=rowStyles(detailXML,5);detailXML=detailXML.replace(/<x:row\b[^>]*r="5"[^>]*>[\s\S]*?<\/x:row>/,`<x:row r="5" ht="32" customHeight="1">${EXPORT_HEADERS.map((h,i)=>writeCell(col(i)+'5',h,headerStyles[col(i)]||headerStyles.AD||'0')).join('')}</x:row>`).replace(/<x:dimension[^>]*\/>/,`<x:dimension ref="A1:AG${detailLast}"/>`);detailXML=patchCells(detailXML,{A1:'CONSOLIDADO DE GESTIONES',A3:'Una fila por gestión. CostoTotal es el total de la devolución; los SKU se presentan en el mismo orden.'}).replaceAll('A1:AD1','A1:AE1').replaceAll('A2:AD2','A2:AE2').replaceAll('A3:AD3','A3:AF3').replaceAll('A1:AE1','A1:AF1').replaceAll('A2:AE2','A2:AF2').replaceAll('A1:AF1','A1:AG1').replaceAll('A2:AF2','A2:AG2').replaceAll('A3:AF3','A3:AG3');const widths=[25,24,22,25,25,25,26,22,36,28,48,20,32,22,22,28,24,24,24,16,16,16,16,26,36,14,24,20,10,24,18,18,18];detailXML=detailXML.replace(/<x:cols>[\s\S]*?<\/x:cols>/,`<x:cols>${EXPORT_ORDER.map(old=>widths[old]).map((w,i)=>`<x:col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</x:cols>`);zip.file('xl/worksheets/sheet4.xml',detailXML);
+ const headerStyles=rowStyles(detailXML,5);detailXML=detailXML.replace(/<x:row\b[^>]*r="5"[^>]*>[\s\S]*?<\/x:row>/,`<x:row r="5" ht="32" customHeight="1">${EXPORT_HEADERS.map((h,i)=>writeCell(col(i)+'5',h,headerStyles[col(i)]||headerStyles.AD||'0')).join('')}</x:row>`).replace(/<x:dimension[^>]*\/>/,`<x:dimension ref="A1:AH${detailLast}"/>`);detailXML=patchCells(detailXML,{A1:'CONSOLIDADO DE GESTIONES',A3:'Una fila por gestión. CostoTotal es el total de la devolución; los SKU se presentan en el mismo orden.'}).replaceAll('A1:AD1','A1:AE1').replaceAll('A2:AD2','A2:AE2').replaceAll('A3:AD3','A3:AF3').replaceAll('A1:AE1','A1:AF1').replaceAll('A2:AE2','A2:AF2').replaceAll('A1:AF1','A1:AH1').replaceAll('A2:AF2','A2:AH2').replaceAll('A3:AF3','A3:AH3');const widths=[25,24,22,25,25,25,26,22,36,28,48,20,32,22,22,28,24,24,24,16,16,16,16,26,36,14,24,20,10,24,18,18,18,18];detailXML=detailXML.replace(/<x:cols>[\s\S]*?<\/x:cols>/,`<x:cols>${EXPORT_ORDER.map(old=>widths[old]).map((w,i)=>`<x:col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</x:cols>`);zip.file('xl/worksheets/sheet4.xml',detailXML);
  const cells=new Map(),put=(ref,value)=>cells.set(ref,value),metrics=model.metrics;
  fillDailyCells(model,put,g,f);
  put('B4',f(`SUM(${g('X')})`,metrics.count));put('B5',f(`IF(SUMIFS(${g('AB')},${g('X')},1)=0,"Sin completar",SUMIFS(${g('U')},${g('X')},1)/SUMIFS(${g('AB')},${g('X')},1))`,metrics.mean??'Sin completar'));
@@ -116,7 +170,7 @@ export async function createDashboardXlsx({rows,catalogs,scope={},template,Zip=g
  // Extend the template's existing properties: a second sheetPr makes Excel discard this sheet.
  dashboard=dashboard.replace('</x:sheetPr>','<x:pageSetUpPr fitToPage="1"/></x:sheetPr>').replace('<x:drawing ', '<x:pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="1"/><x:drawing ');dashboard=dashboard.replace(/<x:sheetView\b/, '<x:sheetView showRowColHeaders="0"').replace(/<x:sheetFormatPr\b/,'<x:sheetFormatPr zeroHeight="1"').replace('</x:cols>','<x:col min="25" max="16384" hidden="1" width="8.43" customWidth="1"/></x:cols>').replace(/<x:row\b[^>]*r="(\d+)"[^>]*>[\s\S]*?<\/x:row>/g,(row,n)=>Number(n)>=55?'':row.replace('<x:row ','<x:row hidden="0" '));
  zip.file('xl/worksheets/sheet1.xml',dashboard);
- for(const [name,end] of [['table1.xml','AC'+last],['table2.xml','AG'+detailLast]]){const path='xl/tables/'+name;let content=await zip.file(path).async('string');if(name==='table2.xml')content=content.replace(/<x:tableColumns[\s\S]*?<\/x:tableColumns>/,`<x:tableColumns count="33">${EXPORT_HEADERS.map((h,i)=>`<x:tableColumn id="${i+1}" name="${xml(h)}"/>`).join('')}</x:tableColumns>`);content=content.replace(/showRowStripes="1"/g,'showRowStripes="0"');content=content.replace(/ref="A5:[A-Z]+6"/g,`ref="A5:${end}"`);if(!content.includes('<x:autoFilter'))content=content.replace('<x:tableColumns',`<x:autoFilter ref="A5:${end}"/><x:tableColumns`);zip.file(path,content)}
+ for(const [name,end] of [['table1.xml','AC'+last],['table2.xml','AH'+detailLast]]){const path='xl/tables/'+name;let content=await zip.file(path).async('string');if(name==='table2.xml')content=content.replace(/<x:tableColumns[\s\S]*?<\/x:tableColumns>/,`<x:tableColumns count="${EXPORT_HEADERS.length}">${EXPORT_HEADERS.map((h,i)=>`<x:tableColumn id="${i+1}" name="${xml(h)}"/>`).join('')}</x:tableColumns>`);content=content.replace(/showRowStripes="1"/g,'showRowStripes="0"');content=content.replace(/ref="A5:[A-Z]+6"/g,`ref="A5:${end}"`);if(!content.includes('<x:autoFilter'))content=content.replace('<x:tableColumns',`<x:autoFilter ref="A5:${end}"/><x:tableColumns`);zip.file(path,content)}
  const charts=Object.keys(zip.files).filter(path=>/^xl\/drawings\/charts\/chart\d+\.xml$/.test(path));for(const path of charts){const index=Number(path.match(/chart(\d+)\.xml$/)[1]);zip.file(path,updateChart(await zip.file(path).async('string'),cells,model,index))}
  let book=await zip.file('xl/workbook.xml').async('string');
  const sheets=[...book.matchAll(/<x:sheet\b[^>]*\/>/g)].map(m=>m[0]);
